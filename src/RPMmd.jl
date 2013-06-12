@@ -9,9 +9,17 @@ using LibExpat
 
 import Base: show, getindex
 
+export update, whatprovides, search, install
 
 const cachedir = Pkg.dir("RPMmd", "cache")
+const installdir = Pkg.dir("RPMmd", "deps")
 const packages = ParsedData[]
+
+if OS_NAME == :Windows
+    const OS_ARCH = WORD_SIZE == 64 ? "mingw64" : "mingw32"
+else
+    const OS_ARCH = string(Sys.ARCH)
+end
 
 function mkdirs(dir)
     if !isdir(dir)
@@ -21,11 +29,13 @@ end
 
 function init()
     mkdirs(cachedir)
+    mkdirs(installdir)
     open(Pkg.dir("RPMmd", "sources.list")) do f
         global const sources = readlines(f,chomp)
     end
     update(false, false)
 end
+
 function urlinfo(source)
     url = urlsplit(source, "http", false)
     if username(url) !== nothing ||
@@ -45,6 +55,32 @@ function urlinfo(source)
     end
     return (_hostname, _port, _url)
 end
+
+function get(source::String)
+    hostname, port, url = urlinfo(source)
+    if port == 0 || hostname == ""
+        return nothing
+    end
+    get(hostname, port, url)
+end
+
+get(hostname::String, port::Int, path::String) = get(HTTPClient.open(hostname, port), path)
+
+function get(conn::HTTPClient.Connection, path::String)
+    data = HTTPClient.get(conn, path)
+    while data.status == 301 || data.status == 302 || data.status == 303
+        loc2 = data.headers["Location"][1]
+        _hostname2, _port2, _url2 = urlinfo(loc2)
+        if _port2 == 0 || _hostname2 == ""
+            break
+        end
+        conn2 = HTTPClient.open(_hostname2, _port2)
+        data = HTTPClient.get(conn2, _url2)
+        HTTPClient.close(conn2)
+    end
+    data
+end
+
 function update(ignorecache::Bool=false, allow_remote::Bool=true)
     global sources, packages
     empty!(packages)
@@ -79,17 +115,7 @@ function update(ignorecache::Bool=false, allow_remote::Bool=true)
                 hasconn = true
             end
             info("Downloading $path")
-            data = HTTPClient.get(conn, path)
-            while data.status == 301 || data.status == 302 || data.status == 303
-                loc2 = data.headers["Location"][1]
-                _hostname2, _port2, _url2 = urlinfo(loc2)
-                if _port2 == 0 || _hostname2 == ""
-                    break
-                end
-                conn2 = HTTPClient.open(_hostname2, _port2)
-                data = HTTPClient.get(conn2, _url2)
-                HTTPClient.close(conn2)
-            end
+            data = get(conn, path)
             if data.status != 200
                 warn("received error $(data.status) $(data.phrase) while downloading $path")
                 return nothing
@@ -106,18 +132,29 @@ function update(ignorecache::Bool=false, allow_remote::Bool=true)
         end
         xml = xp_parse(repomd)
         try
-            for data = xml["repomd"]["data"]
-                if data.name == "data" && get(data.attr,"type","") == "primary"
-                    primary = cacheget("$_url/$(data["location"][1].attr["href"])", false)
-                    if primary === nothing
-                        continue
-                    end
-                    push!(packages,xp_parse(primary))
+            for data = xml["/repomd/data[@type='primary']"]
+                primary = cacheget("$_url/$(data["location"][1].attr["href"])", false)
+                if primary === nothing
+                    continue
                 end
+                pkgs = xp_parse(primary)["package[@type='rpm']"]
+                pkgs["/"][1].attr["url"] = source
+                for pkg in pkgs[".[arch='noarch' or arch='src'][starts-with(name,'mingw32-') or starts-with(name, 'mingw64-')]"]
+                    name = pkg["name"][1]
+                    arch = pkg["arch"][1]
+                    new_arch, new_name = split(LibExpat.string_value(name), '-', 2)
+                    old_arch = LibExpat.string_value(arch)
+                    if old_arch != "noarch"
+                        new_arch = "$new_arch-$old_arch"
+                    end
+                    push!(empty!(name.elements), new_name)
+                    push!(empty!(arch.elements), new_arch)
+                end
+                append!(packages,pkgs)
             end
         catch err
             warn("encounted invalid data while parsing repomd")
-            println(err)
+            rethrow(err)
             continue
         end
         if hasconn
@@ -126,7 +163,187 @@ function update(ignorecache::Bool=false, allow_remote::Bool=true)
     end
 end
 
+immutable Package
+    pd::ParsedData
+end
+Package(p::Package) = p
+Package(p::Vector{ParsedData}) = [Package(pkg) for pkg in p]
+
+getindex(pkg::Package,x) = getindex(pkg.pd,x)
+
+immutable Packages{T<:Union(Set{ParsedData},Vector{ParsedData},)}
+    p::T
+end
+Packages{T<:Union(Set{ParsedData},Vector{ParsedData})}(pkgs::T) = Packages{T}(pkgs)
+function Packages(xpath::String, arch::String="")
+    if arch != ""
+        xpath = xpath*"[arch='$arch']"
+    end
+    Packages(packages[xpath])
+end
+getindex(pkg::Packages,x) = Package(getindex(pkg.p,x))
+Base.length(pkg::Packages) = length(pkg.p)
+Base.isempty(pkg::Packages) = isempty(pkg.p)
+Base.start(pkg::Packages) = start(pkg.p)
+Base.next(pkg::Packages,x) = ((p,s)=next(pkg.p,x); (Package(p),s))
+Base.done(pkg::Packages,x) = done(pkg.p,x)
+
+function show(io::IO, pkg::Package)
+    println(io,"Name: ", names(pkg))
+    println(io,"Summary: ", LibExpat.string_value(pkg["summary"][1]))
+    ver = pkg["version"][1]
+    println(io,"Version: ", ver.attr["ver"], " (rel ", ver.attr["rel"], ")")
+    println(io,"Arch: ", LibExpat.string_value(pkg["arch"][1]))
+    println(io,"URL: ", LibExpat.string_value(pkg["url"][1]))
+    println(io,"License: ", LibExpat.string_value(pkg["format/rpm:license"][1]))
+    println(io,"Description: ", LibExpat.string_value(pkg["description"][1]))
+end
+
+function show(io::IO, pkgs::Packages)
+    for (i,pkg) = enumerate(pkgs)
+        name = names(pkg)
+        summary = LibExpat.string_value(pkg["summary"][1])
+        arch = LibExpat.string_value(pkg["arch"][1])
+        println(io,"$i. $name ($arch) - $summary")
+    end
+end
+
+names(pkg::Package) = LibExpat.string_value(pkg["name"][1])
+names(pkgs::Packages) = [names(pkg) for pkg in pkgs]
+
+function lookup(name::String, arch::String=OS_ARCH)    
+    Packages(".[name='$name']", arch)
+end
+
+search(x::String, arch::String=OS_ARCH) =
+    Packages(".[contains(name,'$x') or contains(summary,'$x') or contains(description,'$x')]", arch)
+
+whatprovides(file::String, arch::String=OS_ARCH) =
+    Packages(".[contains(format/file,'$file')]", arch)
+
+rpm_provides(requires::String) =
+    Packages(".[format/rpm:provides/rpm:entry[@name='$requires']]")
+
+function rpm_provides{T<:String}(requires::Union(Vector{T},Set{T}))
+    pkgs = Set{ParsedData}()
+    for x in requires
+        pkgs_ = rpm_provides(x)
+        if isempty(pkgs_)
+            warn("Package not found that provides $x")
+        else
+            add!(pkgs, select(pkgs_,x).pd)
+        end
+    end
+    Packages(pkgs)
+end
+
+rpm_requires(x::Package) =
+    String[name.attr["name"] for name in
+        x["format/rpm:requires/rpm:entry[@name]"]]
+
+function rpm_requires(xs::Union(Vector{Package},Set{Package},Packages))
+    requires = Set{String}()
+    for x in xs
+        union!(requires, rpm_requires(x))
+    end
+    requires
+end
+
+function rpm_url(pkg::Package)
+    baseurl = pkg["/"][1].attr["url"]
+    arch = LibExpat.string_value(pkg["arch"][1])
+    href = pkg["location"][1].attr["href"]
+    url = "$baseurl/$href"
+end
+
+type RPMVersionNumber
+    s::String
+end
+Base.convert(::Type{RPMVersionNumber}, s::String) = RPMVersionNumber(s)
+Base.(:(<))(a::RPMVersionNumber,b::RPMVersionNumber) = false
+Base.(:(==))(a::RPMVersionNumber,b::RPMVersionNumber) = true
+Base.(:(<=))(a::RPMVersionNumber,b::RPMVersionNumber) = (a==b)||(a<b)
+Base.(:(>))(a::RPMVersionNumber,b::RPMVersionNumber) = !(a<=b)
+Base.(:(>=))(a::RPMVersionNumber,b::RPMVersionNumber) = !(a<b)
+Base.(:(!=))(a::RPMVersionNumber,b::RPMVersionNumber) = !(a==b)
+
+function select(pkgs::Packages, pkg::String)
+    if length(pkgs) == 0
+        error("Package candidate for $pkg not found")
+    elseif length(pkgs) == 1
+        pkg = pkgs[1]
+    else
+        info("Multiple package candidates found for $pkg, picking newest.")
+        epochs = [int(get(pkg["version"][1].attr,"epoch","0")) for pkg in pkgs]
+        pkgs = pkgs[findin(epochs,max(epochs))]
+        if length(pkgs) > 1
+            versions = [convert(RPMVersionNumber, pkg["version"][1].attr["ver"]) for pkg in pkgs]
+            pkgs = pkgs[versions .== max(versions)]
+            if length(pkgs) > 1
+                release = [convert(VersionNumber, pkg["version"][1].attr["rel"]) for pkg in pkgs]
+                pkgs = pkgs[release .== max(release)]
+                if length(pkgs) > 1
+                    warn("Multiple package candidates have the same version, picking one at random")
+                end
+            end
+        end
+        pkg = pkgs[1]
+    end
+    pkg
+end
+
+install(pkg::String, arch::String=OS_ARCH) = install(select(lookup(pkg, arch),pkg))
+
+function install(pkg::Union(Package,Packages))
+    add = rpm_provides(rpm_requires(pkg))
+    packages::Vector{ParsedData}
+    reqd = String[]
+    if isa(pkg,Packages)
+        packages = [p for p in pkg.p]
+    else
+        packages = ParsedData[pkg.pd,]
+    end
+    while !isempty(add)
+        reqs = setdiff(rpm_requires(add), reqd)
+        append!(reqd,reqs)
+        add = Packages(setdiff(rpm_provides(reqs).p,packages))
+        for p in add
+            push!(packages, p.pd)
+        end
+    end
+    todo = Packages(reverse!(packages))
+    info("Installing: ", join(names(todo), ", "))
+    do_install(todo)
+end
+
+function do_install(packages::Packages)
+    for package in packages
+        do_install(package)
+    end
+    info("Success")
+end
+
+function do_install(package::Package)
+    name = names(package)
+    url = rpm_url(package)
+    hostname, port, path = urlinfo(url)
+    info("Downloading: ", name)
+    data = get(hostname, port, path)
+    if data.status != 200
+        error("failed to download $name $(data.status) $(data.phrase) from $url")
+    end
+    path2 = joinpath(cachedir,escape(hostname),escape(path))
+    open(path2, "w") do f
+        write(f, data.body)
+    end
+    info("Extracting: ", name)
+    @windows_only run(`7z x -y $path2 -so -trpm` | `7z x -y -si -o $installdir -tcpio`)
+    @unix_only cd(installdir) do
+        run(`rpm2cpio $path2` | `cpio -imud`)
+    end
+end
 
 init()
 
 end
+
