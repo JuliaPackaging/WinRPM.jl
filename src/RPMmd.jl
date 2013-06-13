@@ -9,7 +9,7 @@ using LibExpat
 
 import Base: show, getindex
 
-export update, whatprovides, search, install
+export update, whatprovides, search, lookup, install
 
 const cachedir = Pkg.dir("RPMmd", "cache")
 const installdir = Pkg.dir("RPMmd", "deps")
@@ -33,6 +33,7 @@ function init()
     open(Pkg.dir("RPMmd", "sources.list")) do f
         global const sources = readlines(f,chomp)
     end
+    global const installed = open(Pkg.dir("RPMmd", "installed.list"), "r+")
     update(false, false)
 end
 
@@ -298,6 +299,8 @@ function install(pkg::Union(Package,Packages))
     add = rpm_provides(rpm_requires(pkg))
     packages::Vector{ParsedData}
     reqd = String[]
+    seek(installed,0)
+    installed_list = readlines(installed,chomp)
     if isa(pkg,Packages)
         packages = [p for p in pkg.p]
     else
@@ -311,22 +314,38 @@ function install(pkg::Union(Package,Packages))
             push!(packages, p.pd)
         end
     end
-    todo = Packages(reverse!(packages))
-    info("Installing: ", join(names(todo), ", "))
-    do_install(todo)
+    filter!(packages) do p
+        for entry in p["format/rpm:provides/rpm:entry[@name]"]
+            provides = entry.attr["name"]
+            if !contains(installed_list, provides)
+                return true
+            end
+        end
+        return false
+    end
+    if isempty(packages)
+        info("Nothing to do")
+    else
+        todo = Packages(reverse!(packages))
+        info("Installing: ", join(names(todo), ", "))
+        do_install(todo)
+        info("Success")
+    end
 end
 
 function do_install(packages::Packages)
     for package in packages
         do_install(package)
     end
-    info("Success")
 end
 
 function do_install(package::Package)
     name = names(package)
     url = rpm_url(package)
     hostname, port, path = urlinfo(url)
+    if port == 0 || hostname == ""
+        error("could not parse url $url for $name")
+    end
     info("Downloading: ", name)
     data = get(hostname, port, path)
     if data.status != 200
@@ -341,6 +360,11 @@ function do_install(package::Package)
     @unix_only cd(installdir) do
         run(`rpm2cpio $path2` | `cpio -imud`)
     end
+    for entry in package["format/rpm:provides/rpm:entry[@name]"]
+        provides = entry.attr["name"]
+        println(installed, provides)
+    end
+    flush(installed)
 end
 
 init()
