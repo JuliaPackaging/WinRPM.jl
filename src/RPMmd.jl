@@ -1,7 +1,6 @@
 module RPMmd
 
 using URLParse
-using HTTP.Util
 require("HTTP/src/Client")
 using HTTPClient
 using Zlib
@@ -9,7 +8,7 @@ using LibExpat
 
 import Base: show, getindex
 
-export update, whatprovides, search, lookup, install
+export update, whatprovides, search, lookup, install, deps
 
 const cachedir = Pkg.dir("RPMmd", "cache")
 const installdir = Pkg.dir("RPMmd", "deps")
@@ -220,7 +219,7 @@ search(x::String, arch::String=OS_ARCH) =
     Packages(".[contains(name,'$x') or contains(summary,'$x') or contains(description,'$x')]", arch)
 
 whatprovides(file::String, arch::String=OS_ARCH) =
-    Packages(".[contains(format/file,'$file')]", arch)
+    Packages(".[format/file[contains(text(),'$file')]]", arch)
 
 rpm_provides(requires::String) =
     Packages(".[format/rpm:provides/rpm:entry[@name='$requires']]")
@@ -238,9 +237,7 @@ function rpm_provides{T<:String}(requires::Union(Vector{T},Set{T}))
     Packages(pkgs)
 end
 
-rpm_requires(x::Package) =
-    String[name.attr["name"] for name in
-        x["format/rpm:requires/rpm:entry[@name]"]]
+rpm_requires(x::Package) = x[xpath"format/rpm:requires/rpm:entry/@name"]
 
 function rpm_requires(xs::Union(Vector{Package},Set{Package},Packages))
     requires = Set{String}()
@@ -251,9 +248,9 @@ function rpm_requires(xs::Union(Vector{Package},Set{Package},Packages))
 end
 
 function rpm_url(pkg::Package)
-    baseurl = pkg["/"][1].attr["url"]
-    arch = LibExpat.string_value(pkg["arch"][1])
-    href = pkg["location"][1].attr["href"]
+    baseurl = pkg[xpath"/@url"][1]
+    arch = pkg[xpath"string(arch)"][1]
+    href = pkg[xpath"location/@href"][1]
     url = "$baseurl/$href"
 end
 
@@ -268,6 +265,14 @@ Base.(:(>))(a::RPMVersionNumber,b::RPMVersionNumber) = !(a<=b)
 Base.(:(>=))(a::RPMVersionNumber,b::RPMVersionNumber) = !(a<b)
 Base.(:(!=))(a::RPMVersionNumber,b::RPMVersionNumber) = !(a==b)
 
+function getepoch(pkg::Package)
+    epoch = pkg[xpath"version/@epoch"]
+    if isempty(epoch)
+        0
+    else
+        int(epoch)
+    end
+end
 function select(pkgs::Packages, pkg::String)
     if length(pkgs) == 0
         error("Package candidate for $pkg not found")
@@ -275,13 +280,13 @@ function select(pkgs::Packages, pkg::String)
         pkg = pkgs[1]
     else
         info("Multiple package candidates found for $pkg, picking newest.")
-        epochs = [int(get(pkg["version"][1].attr,"epoch","0")) for pkg in pkgs]
+        epochs = [getepoch(pkg) for pkg in pkgs]
         pkgs = pkgs[findin(epochs,max(epochs))]
         if length(pkgs) > 1
-            versions = [convert(RPMVersionNumber, pkg["version"][1].attr["ver"]) for pkg in pkgs]
+            versions = [convert(RPMVersionNumber, pkg[xpath"version/@ver"][1]) for pkg in pkgs]
             pkgs = pkgs[versions .== max(versions)]
             if length(pkgs) > 1
-                release = [convert(VersionNumber, pkg["version"][1].attr["rel"]) for pkg in pkgs]
+                release = [convert(VersionNumber, pkg[xpath"version/@rel"][1]) for pkg in pkgs]
                 pkgs = pkgs[release .== max(release)]
                 if length(pkgs) > 1
                     warn("Multiple package candidates have the same version, picking one at random")
@@ -293,14 +298,12 @@ function select(pkgs::Packages, pkg::String)
     pkg
 end
 
-install(pkg::String, arch::String=OS_ARCH) = install(select(lookup(pkg, arch),pkg))
-
-function install(pkg::Union(Package,Packages))
+deps(pkg::String, arch::String=OS_ARCH) = deps(select(lookup(pkg, arch), pkg))
+function deps(pkg::Union(Package,Packages))
     add = rpm_provides(rpm_requires(pkg))
     packages::Vector{ParsedData}
     reqd = String[]
     seek(installed,0)
-    installed_list = readlines(installed,chomp)
     if isa(pkg,Packages)
         packages = [p for p in pkg.p]
     else
@@ -314,8 +317,16 @@ function install(pkg::Union(Package,Packages))
             push!(packages, p.pd)
         end
     end
+    return Packages(packages)
+end
+
+install(pkg::String, arch::String=OS_ARCH) = install(select(lookup(pkg, arch),pkg))
+
+function install(pkg::Union(Package,Packages))
+    packages = deps(pkg).p
+    installed_list = readlines(installed,chomp)
     filter!(packages) do p
-        for entry in p["format/rpm:provides/rpm:entry[@name]"]
+        for entry in p[xpath"format/rpm:provides/rpm:entry[@name]"]
             provides = entry.attr["name"]
             if !contains(installed_list, provides)
                 return true
@@ -327,9 +338,11 @@ function install(pkg::Union(Package,Packages))
         info("Nothing to do")
     else
         todo = Packages(reverse!(packages))
-        info("Installing: ", join(names(todo), ", "))
-        do_install(todo)
-        info("Success")
+        info("Packages to install: ", join(names(todo), ", "))
+        if prompt_ok("Continue with install")
+            do_install(todo)
+            info("Success")
+        end
     end
 end
 
@@ -360,11 +373,25 @@ function do_install(package::Package)
     @unix_only cd(installdir) do
         run(`rpm2cpio $path2` | `cpio -imud`)
     end
-    for entry in package["format/rpm:provides/rpm:entry[@name]"]
+    for entry in package[xpath"format/rpm:provides/rpm:entry[@name]"]
         provides = entry.attr["name"]
         println(installed, provides)
     end
     flush(installed)
+end
+
+function prompt_ok(question)
+    while true
+        print(question)
+        print(" [y/N]? ")
+        ans = strip(readline(STDIN))
+        if isempty(ans) || ans[1] == 'n' || ans[1] == 'N'
+            return false
+        elseif ans[1] == 'y' || ans[1] == 'Y'
+            return true
+        end
+        println("Please answer Y or N")
+    end
 end
 
 init()
