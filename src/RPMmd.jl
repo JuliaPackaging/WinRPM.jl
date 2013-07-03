@@ -1,10 +1,9 @@
 module RPMmd
 
-using URLParse
-require("HTTP/src/Client")
-using HTTPClient
+using libCURL
 using Zlib
 using LibExpat
+using URLParse
 
 import Base: show, getindex
 
@@ -30,56 +29,15 @@ function init()
     mkdirs(cachedir)
     mkdirs(installdir)
     open(Pkg.dir("RPMmd", "sources.list")) do f
-        global const sources = readlines(f,chomp)
+        global const sources = filter!(readlines(f,chomp)) do l
+            return !isempty(l) && l[1] != '#'
+        end
     end
     global const installed = open(Pkg.dir("RPMmd", "installed.list"), "r+")
     update(false, false)
 end
 
-function urlinfo(source)
-    url = urlsplit(source, "http", false)
-    if username(url) !== nothing ||
-        password(url) !== nothing ||
-        url.scheme != "http" ||
-        url.params != "" ||
-        url.fragment != "" ||
-         hostname(url) === nothing
-         warn("skipping unsupported url \"$source\"")
-         return ("",0,"")
-    end
-    _hostname::ASCIIString = hostname(url)
-    _port::Int = ((p = port(url)) == nothing ? 80 : p)
-    _url::ASCIIString = url.url
-    if _url[end] == '/'
-        _url = _url[1:end-1]
-    end
-    return (_hostname, _port, _url)
-end
-
-function get(source::String)
-    hostname, port, url = urlinfo(source)
-    if port == 0 || hostname == ""
-        return nothing
-    end
-    get(hostname, port, url)
-end
-
-get(hostname::String, port::Int, path::String) = get(HTTPClient.open(hostname, port), path)
-
-function get(conn::HTTPClient.Connection, path::String)
-    data = HTTPClient.get(conn, path)
-    while data.status == 301 || data.status == 302 || data.status == 303
-        loc2 = data.headers["Location"][1]
-        _hostname2, _port2, _url2 = urlinfo(loc2)
-        if _port2 == 0 || _hostname2 == ""
-            break
-        end
-        conn2 = HTTPClient.open(_hostname2, _port2)
-        data = HTTPClient.get(conn2, _url2)
-        HTTPClient.close(conn2)
-    end
-    data
-end
+download(source::String) = libCURL.HTTPC.get(source)
 
 function update(ignorecache::Bool=false, allow_remote::Bool=true)
     global sources, packages
@@ -88,13 +46,8 @@ function update(ignorecache::Bool=false, allow_remote::Bool=true)
         if source == ""
             continue
         end
-        _hostname, _port, _url = urlinfo(source)
-        if _port == 0 || _hostname == ""
-            continue
-        end
-        cache = joinpath(cachedir, escape(_hostname))
+        cache = joinpath(cachedir, escape(source))
         mkdirs(cache)
-        local conn::HTTPClient.Connection, hasconn::Bool=false
         function cacheget(path::ASCIIString, never_cache::Bool)
             gunzip = false
             path2 = joinpath(cache,escape(path))
@@ -109,15 +62,10 @@ function update(ignorecache::Bool=false, allow_remote::Bool=true)
                 warn("skipping $path, not in cache")
                 return nothing
             end
-            if !hasconn
-                info("Connecting to $_hostname")
-                conn = HTTPClient.open(_hostname, _port)
-                hasconn = true
-            end
-            info("Downloading $path")
-            data = get(conn, path)
-            if data.status != 200
-                warn("received error $(data.status) $(data.phrase) while downloading $path")
+            info("Downloading $source/$path")
+            data = download("$source/$path")
+            if data.http_code != 200
+                warn("received error $(data.http_code) while downloading $source/$path")
                 return nothing
             end
             body = gunzip ? decompress(data.body) : data.body
@@ -126,22 +74,22 @@ function update(ignorecache::Bool=false, allow_remote::Bool=true)
             end
             return bytestring(body)
         end
-        repomd = cacheget("$_url/repodata/repomd.xml", true)
+        repomd = cacheget("repodata/repomd.xml", true)
         if repomd === nothing
            continue
         end
         xml = xp_parse(repomd)
         try
-            for data = xml["/repomd/data[@type='primary']"]
-                primary = cacheget("$_url/$(data["location"][1].attr["href"])", false)
+            for data = xml[xpath"/repomd/data[@type='primary']"]
+                primary = cacheget(data[xpath"location/@href"][1], false)
                 if primary === nothing
                     continue
                 end
-                pkgs = xp_parse(primary)["package[@type='rpm']"]
+                pkgs = xp_parse(primary)[xpath"package[@type='rpm']"]
                 pkgs["/"][1].attr["url"] = source
-                for pkg in pkgs[".[arch='noarch' or arch='src'][starts-with(name,'mingw32-') or starts-with(name, 'mingw64-')]"]
-                    name = pkg["name"][1]
-                    arch = pkg["arch"][1]
+                for pkg in pkgs[xpath".[arch='noarch' or arch='src'][starts-with(name,'mingw32-') or starts-with(name, 'mingw64-')]"]
+                    name = pkg[xpath"name"][1]
+                    arch = pkg[xpath"arch"][1]
                     new_arch, new_name = split(LibExpat.string_value(name), '-', 2)
                     old_arch = LibExpat.string_value(arch)
                     if old_arch != "noarch"
@@ -156,9 +104,6 @@ function update(ignorecache::Bool=false, allow_remote::Bool=true)
             warn("encounted invalid data while parsing repomd")
             rethrow(err)
             continue
-        end
-        if hasconn
-            HTTPClient.close(conn)
         end
     end
 end
@@ -251,7 +196,7 @@ function rpm_url(pkg::Package)
     baseurl = pkg[xpath"/@url"][1]
     arch = pkg[xpath"string(arch)"][1]
     href = pkg[xpath"location/@href"][1]
-    url = "$baseurl/$href"
+    url = baseurl, href
 end
 
 type RPMVersionNumber
@@ -354,18 +299,14 @@ end
 
 function do_install(package::Package)
     name = names(package)
-    url = rpm_url(package)
-    hostname, port, path = urlinfo(url)
-    if port == 0 || hostname == ""
-        error("could not parse url $url for $name")
-    end
+    source,path = rpm_url(package)
     info("Downloading: ", name)
-    data = get(hostname, port, path)
-    if data.status != 200
+    data = download("$source/$path")
+    if data.http_code != 200
         info("try running RPMmd.update() and retrying the install")
-        error("failed to download $name $(data.status) $(data.phrase) from $url.")
+        error("failed to download $name $(data.http_code) from $source/$path.")
     end
-    cache = joinpath(cachedir,escape(hostname))
+    cache = joinpath(cachedir,escape(source))
     path2 = joinpath(cache,escape(path))
     open(path2, "w") do f
         write(f, data.body)
