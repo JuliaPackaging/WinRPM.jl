@@ -362,16 +362,33 @@ function do_install(package::Package)
     info("Downloading: ", name)
     data = get(hostname, port, path)
     if data.status != 200
-        error("failed to download $name $(data.status) $(data.phrase) from $url")
+        info("try running RPMmd.update() and retrying the install")
+        error("failed to download $name $(data.status) $(data.phrase) from $url.")
     end
-    path2 = joinpath(cachedir,escape(hostname),escape(path))
+    cache = joinpath(cachedir,escape(hostname))
+    path2 = joinpath(cache,escape(path))
     open(path2, "w") do f
         write(f, data.body)
     end
     info("Extracting: ", name)
-    @windows_only run(`7z x -y $path2 -so -trpm` | `7z x -y -si -o $installdir -tcpio`)
-    @unix_only cd(installdir) do
-        run(`rpm2cpio $path2` | `cpio -imud`)
+    cpio = splitext(path2)[1]*".cpio"
+    local err = nothing
+    try
+        run(`7z x -y $path2 -o$cache`)
+        run(`7z x -y $cpio -o$installdir`)
+    catch e
+        err = e
+        @unix_only cd(installdir) do
+            if success(`rpm2cpio $path2` | `cpio -imud`)
+                err = nothing
+            end
+        end
+    end
+    if isfile(cpio)
+        rm(cpio)
+    end
+    if err !== nothing
+        reraise(e)
     end
     for entry in package[xpath"format/rpm:provides/rpm:entry[@name]"]
         provides = entry.attr["name"]
