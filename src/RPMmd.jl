@@ -7,7 +7,7 @@ using URLParse
 
 import Base: show, getindex
 
-export update, whatprovides, search, lookup, install, deps
+#export update, whatprovides, search, lookup, install, deps, help
 
 const cachedir = Pkg.dir("RPMmd", "cache")
 const installdir = Pkg.dir("RPMmd", "deps")
@@ -374,6 +374,10 @@ function prompt_ok(question)
         end
         println("Please answer Y or N")
     end
+end
+
+function help()
+    less(Pkg.dir("RPMmd","README.md"))
 end
 
 init()

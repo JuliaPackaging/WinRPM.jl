@@ -1,6 +1,32 @@
 This is a front-end installer for RPM-md packages.
 
-It provides the following functions for general usage:
+To use, add the following lines to your `%APPDATA%/julia/.juliarc.jl` file:
+
+```julia
+RPMbindir = Pkg.dir("RPMmd","deps","usr","$(Sys.ARCH)-w64-mingw32","sys-root","mingw","bin")
+push!(DL_LOAD_PATH,RPMbindir)
+ENV["PATH"]=ENV["PATH"]*";"*RPMbindir
+```
+
+And add the package manager to your julia environment:
+
+```julia
+Pkg2.add("RPMmd")
+require("RPMmd")
+RPMmd.update()
+```
+
+Now you can search and install binaries:
+
+```julia
+require("RPMmd")
+RPMmd.install("gtk2")
+RPMmd.install("win_iconv","mingw32")
+```
+
+---
+
+RPM-md provides the following functions for general usage:
 `update`, `whatprovides`, `search`, `lookup`, and `install`
 
 `update()` -- download the new metadata from the hosts. Additional hosts can be added by editing the file `sources.list`.
@@ -20,7 +46,7 @@ Package lists can be further filtered and analyzed, as the following example dem
 ```julia
 julia> using RPMmd
 
-julia> gtk3_candidates = search("gtk3", "mingw32")
+julia> gtk3_candidates = RPMmd.search("gtk3", "mingw32")
 1. webkitgtk3-debug (mingw32) - Debug information for package mingw32-webkitgtk3
 2. webkitgtk3-lang (mingw32) - Languages for package mingw32-webkitgtk3
 3. webkitgtk3-tools (mingw32) - Library for rendering web content, GTK+ 3 Port (tools)
@@ -44,7 +70,7 @@ Description: GTK+ is a multi-platform toolkit for creating graphical user interf
 Offering a complete set of widgets, GTK+ is suitable for projects
 ranging from small one-off projects to complete application suites.
 
-julia> install(gtk3_pkg)
+julia> RPMmd.install(gtk3_pkg)
 MESSAGE: Installing: libxml2, atk, gdk-pixbuf, liblzma, zlib, libpng, libtiff, pixman, freetype, libffi, glib2-lang, atk-lang, libjpeg, gdk-pixbuf-lang, libharfbuzz, glib2, fontconfig, libcairo2, libjasper, libgcc, libintl, gtk3
 MESSAGE: Downloading: libxml2
 MESSAGE: Extracting: libxml2
@@ -59,5 +85,5 @@ MESSAGE: Extracting: gtk3
 MESSAGE: Success
 
 julia> # or we can just install it directly
-julia> install("gtk3")
+julia> RPMmd.install("gtk3")
 ```
