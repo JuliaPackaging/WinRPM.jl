@@ -1,6 +1,6 @@
 module RPMmd
 
-using libCURL
+@unix_only using libCURL
 using Zlib
 using LibExpat
 using URLParse
@@ -33,11 +33,35 @@ function init()
             return !isempty(l) && l[1] != '#'
         end
     end
-    global const installed = open(Pkg.dir("RPMmd", "installed.list"), "r+")
+    installedlist = Pkg.dir("RPMmd", "installed.list")
+    if !isfile(installedlist)
+        global const installed = open(installedlist, "w+")
+    else
+        global const installed = open(installedlist, "r+")
+    end
     update(false, false)
 end
 
-download(source::String) = libCURL.HTTPC.get(source)
+@unix_only download(source::ByteString) = (x=libCURL.HTTPC.get(source); (x.body,x.http_status))
+@windows_only function download(source::ByteString)
+    #res = ccall((:URLDownloadToFileA,:urlmon),stdcall,Cuint,
+    #    (Ptr{Void},Ptr{Uint8},Ptr{Uint8},Cint,Ptr{Void}),
+    #    0,source,dest,0,0)
+    dest = Array(Uint8,1000)
+    res = ccall((:URLDownloadToCacheFileA,:urlmon),stdcall,Cuint,
+        (Ptr{Void},Ptr{Uint8},Ptr{Uint8},Clong,Cint,Ptr{Void}),
+        0,source,dest,length(dest),0,0)
+    if res == 0
+        filename = bytestring(pointer(dest))
+        if isfile(filename)
+            return readall(filename),200
+        else
+            return "",0
+        end
+    else
+        return "",0
+    end
+end
 
 function update(ignorecache::Bool=false, allow_remote::Bool=true)
     global sources, packages
@@ -64,11 +88,11 @@ function update(ignorecache::Bool=false, allow_remote::Bool=true)
             end
             info("Downloading $source/$path")
             data = download("$source/$path")
-            if data.http_code != 200
-                warn("received error $(data.http_code) while downloading $source/$path")
+            if data[2] != 200
+                warn("received error $(data[2]) while downloading $source/$path")
                 return nothing
             end
-            body = gunzip ? decompress(data.body) : data.body
+            body = gunzip ? decompress(data[1]) : data[1]
             open(path2, "w") do f
                 write(f, body)
             end
@@ -302,14 +326,14 @@ function do_install(package::Package)
     source,path = rpm_url(package)
     info("Downloading: ", name)
     data = download("$source/$path")
-    if data.http_code != 200
+    if data[2] != 200
         info("try running RPMmd.update() and retrying the install")
-        error("failed to download $name $(data.http_code) from $source/$path.")
+        error("failed to download $name $(data[2]) from $source/$path.")
     end
     cache = joinpath(cachedir,escape(source))
     path2 = joinpath(cache,escape(path))
     open(path2, "w") do f
-        write(f, data.body)
+        write(f, data[1])
     end
     info("Extracting: ", name)
     cpio = splitext(path2)[1]*".cpio"
