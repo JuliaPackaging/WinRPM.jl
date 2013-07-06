@@ -1,6 +1,6 @@
 module RPMmd
 
-@unix_only using libCURL
+@unix_only using HTTPClient.HTTPC
 using Zlib
 using LibExpat
 using URLParse
@@ -42,7 +42,7 @@ function init()
     update(false, false)
 end
 
-@unix_only download(source::ByteString) = (x=libCURL.HTTPC.get(source); (x.body,x.http_status))
+@unix_only download(source::ByteString) = (x=HTTPC.get(source); (x.body,x.http_status))
 @windows_only function download(source::ByteString)
     #res = ccall((:URLDownloadToFileA,:urlmon),stdcall,Cuint,
     #    (Ptr{Void},Ptr{Uint8},Ptr{Uint8},Cint,Ptr{Void}),
