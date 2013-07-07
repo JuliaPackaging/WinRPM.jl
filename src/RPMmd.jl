@@ -1,6 +1,6 @@
 module RPMmd
 
-@unix_only using HTTPClient.HTTPC
+@unix_only usingmodule(:HTTPClient,:HTTPC)
 using Zlib
 using LibExpat
 using URLParse
