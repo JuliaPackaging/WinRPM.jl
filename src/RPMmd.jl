@@ -289,9 +289,17 @@ function deps(pkg::Union(Package,Packages))
     return Packages(packages)
 end
 
-install(pkg::String, arch::String=OS_ARCH) = install(select(lookup(pkg, arch),pkg))
+install(pkg::String, arch::String=OS_ARCH; force = false) = install(select(lookup(pkg, arch),pkg); force = force)
 
-function install(pkg::Union(Package,Packages))
+function installl(pkgs::Vector{ASCIIString}, arch = OS_ARCH; force = false)
+    todo = Package[]
+    for pkg in pkgs
+        push!(todo,select(lookup(pkg, arch),pkg))
+    end
+    install(Packages(todo); force = force)
+end
+
+function install(pkg::Union(Package,Packages); force = false)
     packages = deps(pkg).p
     installed_list = readlines(installed,chomp)
     filter!(packages) do p
@@ -308,7 +316,7 @@ function install(pkg::Union(Package,Packages))
     else
         todo = Packages(reverse!(packages))
         info("Packages to install: ", join(names(todo), ", "))
-        if prompt_ok("Continue with install")
+        if force || prompt_ok("Continue with install")
             do_install(todo)
             info("Success")
         end
@@ -378,6 +386,37 @@ end
 
 function help()
     less(Pkg.dir("RPMmd","README.md"))
+end
+
+# BinDeps integration
+
+using BinDeps
+import BinDeps: PackageManager, can_use, package_available, available_version, libdir, generate_steps, LibraryDependency, provider
+
+type RPM <: PackageManager 
+    package
+end
+can_use(::Type{RPM}) = OS_NAME == :Windows
+function package_available(p::RPM) 
+    !can_use(RPM) && return false
+    pkgs = p.package
+    if isa(pkgs,String)
+        pkgs = [pkgs]
+    end
+    return all(pkg->(length(lookup(pkg).p) > 0),pkgs)
+end
+
+available_version(p::RPM) = convert(VersionNumber,lookup(p.package).p[1][xpath"version/@ver"][1])
+libdir(p::RPM,dep) = Pkg.dir("RPMmd","deps","usr","$(Sys.ARCH)-w64-mingw32","sys-root","mingw","bin")
+
+provider(::Type{RPM},packages::Vector{ASCIIString}; opts...) = RPM(packages)
+
+function generate_steps(dep::LibraryDependency,h::RPM,opts) 
+    if get(opts,:force_rebuild,false) 
+        error("Will not force RPMmd to rebuild dependency \"$(dep.name)\".\n"*
+              "Please make any necessary adjustments manually (This might just be a version upgrade)")
+    end
+    ()->install(h.package; force = true)
 end
 
 init()
