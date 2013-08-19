@@ -1,6 +1,7 @@
 module RPMmd
 
-@unix_only usingmodule(:HTTPClient,:HTTPC)
+@unix_only using HTTPClient
+@unix_only using HTTPC
 using Zlib
 using LibExpat
 using URLParse
@@ -289,9 +290,17 @@ function deps(pkg::Union(Package,Packages))
     return Packages(packages)
 end
 
-install(pkg::String, arch::String=OS_ARCH) = install(select(lookup(pkg, arch),pkg))
+install(pkg::String, arch::String=OS_ARCH; yes = false) = install(select(lookup(pkg, arch),pkg); yes = yes)
 
-function install(pkg::Union(Package,Packages))
+function install(pkgs::Vector{ASCIIString}, arch = OS_ARCH; yes = false)
+    todo = Package[]
+    for pkg in pkgs
+        push!(todo,select(lookup(pkg, arch),pkg))
+    end
+    install(Packages(todo); yes = yes)
+end
+
+function install(pkg::Union(Package,Packages); yes = false)
     packages = deps(pkg).p
     installed_list = readlines(installed,chomp)
     filter!(packages) do p
@@ -308,7 +317,7 @@ function install(pkg::Union(Package,Packages))
     else
         todo = Packages(reverse!(packages))
         info("Packages to install: ", join(names(todo), ", "))
-        if prompt_ok("Continue with install")
+        if yes || prompt_ok("Continue with install")
             do_install(todo)
             info("Success")
         end
@@ -379,6 +388,8 @@ end
 function help()
     less(Pkg.dir("RPMmd","README.md"))
 end
+
+include("bindeps.jl")
 
 init()
 
