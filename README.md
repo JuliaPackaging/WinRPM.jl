@@ -11,7 +11,7 @@ ENV["PATH"]=ENV["PATH"]*";"*RPMbindir
 And add the package manager to your julia environment:
 
 ```julia
-Pkg2.add("RPMmd")
+Pkg.add("RPMmd")
 require("RPMmd")
 RPMmd.update()
 ```
