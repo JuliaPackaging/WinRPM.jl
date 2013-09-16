@@ -3,15 +3,22 @@
 using BinDeps
 import BinDeps: PackageManager, can_use, package_available, available_version, libdir, generate_steps, LibraryDependency, provider
 
+update_once = true
+
 type RPM <: PackageManager 
     package
 end
 can_use(::Type{RPM}) = OS_NAME == :Windows
 function package_available(p::RPM) 
-    !can_use(RPM) && return false
+    global update_once::Bool
+    !can_use(RPM) && return false    
     pkgs = p.package
     if isa(pkgs,String)
         pkgs = [pkgs]
+    end
+    if (update_once::Bool) 
+        info("Updating RPMmd package list")
+        update(); update_once = false;
     end
     return all(pkg->(length(lookup(pkg).p) > 0),pkgs)
 end
