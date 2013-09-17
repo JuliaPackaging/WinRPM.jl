@@ -361,7 +361,7 @@ function do_install(package::Package)
         rm(cpio)
     end
     if err !== nothing
-        reraise(e)
+        rethrow(e)
     end
     for entry in package[xpath"format/rpm:provides/rpm:entry[@name]"]
         provides = entry.attr["name"]
