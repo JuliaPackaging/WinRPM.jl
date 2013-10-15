@@ -185,10 +185,10 @@ function lookup(name::String, arch::String=OS_ARCH)
 end
 
 search(x::String, arch::String=OS_ARCH) =
-    Packages(".[contains(name,'$x') or contains(summary,'$x') or contains(description,'$x')]", arch)
+    Packages(".[in(name,'$x') or in(summary,'$x') or in(description,'$x')]", arch)
 
 whatprovides(file::String, arch::String=OS_ARCH) =
-    Packages(".[format/file[contains(text(),'$file')]]", arch)
+    Packages(".[format/file[in(text(),'$file')]]", arch)
 
 rpm_provides(requires::String) =
     Packages(".[format/rpm:provides/rpm:entry[@name='$requires']]")
@@ -200,7 +200,7 @@ function rpm_provides{T<:String}(requires::Union(Vector{T},Set{T}))
         if isempty(pkgs_)
             warn("Package not found that provides $x")
         else
-            add!(pkgs, select(pkgs_,x).pd)
+            push!(pkgs, select(pkgs_,x).pd)
         end
     end
     Packages(pkgs)
@@ -305,7 +305,7 @@ function install(pkg::Union(Package,Packages); yes = false)
     filter!(packages) do p
         for entry in p[xpath"format/rpm:provides/rpm:entry[@name]"]
             provides = entry.attr["name"]
-            if !contains(installed_list, provides)
+            if !in(installed_list, provides)
                 return true
             end
         end
