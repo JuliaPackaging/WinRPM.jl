@@ -144,6 +144,7 @@ immutable Packages{T<:Union(Set{ParsedData},Vector{ParsedData},)}
     p::T
 end
 Packages{T<:Union(Set{ParsedData},Vector{ParsedData})}(pkgs::T) = Packages{T}(pkgs)
+Packages(pkgs::Vector{Package}) = Packages([p.pd for p in pkgs])
 function Packages(xpath::String, arch::String="")
     if arch != ""
         xpath = xpath*"[arch='$arch']"
