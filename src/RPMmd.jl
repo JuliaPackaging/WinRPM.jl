@@ -279,6 +279,7 @@ function deps(pkg::Union(Package,Packages))
     else
         packages = ParsedData[pkg.pd,]
     end
+    packages = union(packages, add.p)
     while !isempty(add)
         reqs = setdiff(rpm_requires(add), reqd)
         append!(reqd,reqs)
