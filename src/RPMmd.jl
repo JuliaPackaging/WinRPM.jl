@@ -240,7 +240,7 @@ function getepoch(pkg::Package)
     if isempty(epoch)
         0
     else
-        int(epoch)
+        int(epoch[1])
     end
 end
 function select(pkgs::Packages, pkg::String)
