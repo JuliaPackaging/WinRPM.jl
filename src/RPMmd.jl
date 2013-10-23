@@ -255,11 +255,9 @@ function select(pkgs::Packages, pkg::String)
         if length(pkgs) > 1
             versions = [convert(RPMVersionNumber, pkg[xpath"version/@ver"][1]) for pkg in pkgs]
             pkgs = pkgs[versions .== maximum(versions)]
-            println("ver")
             if length(pkgs) > 1
                 release = [convert(VersionNumber, pkg[xpath"version/@rel"][1]) for pkg in pkgs]
                 pkgs = pkgs[release .== maximum(release)]
-                println("rel")
                 if length(pkgs) > 1
                     warn("Multiple package candidates have the same version, picking one at random")
                 end
