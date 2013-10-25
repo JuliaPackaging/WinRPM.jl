@@ -17,20 +17,20 @@ function package_available(p::RPM)
         pkgs = [pkgs]
     end
     if (update_once::Bool) 
-        info("Updating RPMmd package list")
+        info("Updating WinRPM package list")
         update(); update_once = false;
     end
     return all(pkg->(length(lookup(pkg).p) > 0),pkgs)
 end
 
 available_version(p::RPM) = lookup(p.package).p[1][xpath"version/@ver"][1]
-libdir(p::RPM,dep) = Pkg.dir("RPMmd","deps","usr","$(Sys.ARCH)-w64-mingw32","sys-root","mingw","bin")
+libdir(p::RPM,dep) = Pkg.dir("WinRPM","deps","usr","$(Sys.ARCH)-w64-mingw32","sys-root","mingw","bin")
 
 provider(::Type{RPM},packages::Vector{ASCIIString}; opts...) = RPM(packages)
 
 function generate_steps(dep::LibraryDependency,h::RPM,opts) 
     if get(opts,:force_rebuild,false) 
-        error("Will not force RPMmd to rebuild dependency \"$(dep.name)\".\n"*
+        error("Will not force WinRPM to rebuild dependency \"$(dep.name)\".\n"*
               "Please make any necessary adjustments manually (This might just be a version upgrade)")
     end
     ()->install(h.package; yes = true)

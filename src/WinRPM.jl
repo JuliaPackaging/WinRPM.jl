@@ -1,4 +1,4 @@
-module RPMmd
+module WinRPM
 
 @unix_only using HTTPClient.HTTPC
 using Zlib
@@ -9,8 +9,8 @@ import Base: show, getindex
 
 #export update, whatprovides, search, lookup, install, deps, help
 
-const cachedir = Pkg.dir("RPMmd", "cache")
-const installdir = Pkg.dir("RPMmd", "deps")
+const cachedir = Pkg.dir("WinRPM", "cache")
+const installdir = Pkg.dir("WinRPM", "deps")
 const packages = ParsedData[]
 
 if OS_NAME == :Windows
@@ -28,12 +28,12 @@ end
 function init()
     mkdirs(cachedir)
     mkdirs(installdir)
-    open(Pkg.dir("RPMmd", "sources.list")) do f
+    open(Pkg.dir("WinRPM", "sources.list")) do f
         global const sources = filter!(readlines(f,chomp)) do l
             return !isempty(l) && l[1] != '#'
         end
     end
-    installedlist = Pkg.dir("RPMmd", "installed.list")
+    installedlist = Pkg.dir("WinRPM", "installed.list")
     if !isfile(installedlist)
         global const installed = open(installedlist, "w+")
     else
@@ -337,7 +337,7 @@ function do_install(package::Package)
     info("Downloading: ", name)
     data = download("$source/$path")
     if data[2] != 200
-        info("try running RPMmd.update() and retrying the install")
+        info("try running WinRPM.update() and retrying the install")
         error("failed to download $name $(data[2]) from $source/$path.")
     end
     cache = joinpath(cachedir,escape(source))
@@ -387,7 +387,7 @@ function prompt_ok(question)
 end
 
 function help()
-    less(Pkg.dir("RPMmd","README.md"))
+    less(Pkg.dir("WinRPM","README.md"))
 end
 
 include("bindeps.jl")

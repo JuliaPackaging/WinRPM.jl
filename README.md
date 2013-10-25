@@ -3,7 +3,7 @@ This is a front-end installer for RPM-md packages.
 To use, add the following lines to your `%APPDATA%/julia/.juliarc.jl` file:
 
 ```julia
-RPMbindir = Pkg.dir("RPMmd","deps","usr","$(Sys.ARCH)-w64-mingw32","sys-root","mingw","bin")
+RPMbindir = Pkg.dir("WinRPM","deps","usr","$(Sys.ARCH)-w64-mingw32","sys-root","mingw","bin")
 push!(DL_LOAD_PATH,RPMbindir)
 ENV["PATH"]=ENV["PATH"]*";"*RPMbindir
 ```
@@ -11,17 +11,17 @@ ENV["PATH"]=ENV["PATH"]*";"*RPMbindir
 And add the package manager to your julia environment:
 
 ```julia
-Pkg.add("RPMmd")
-require("RPMmd")
-RPMmd.update()
+Pkg.add("WinRPM")
+require("WinRPM")
+WinRPM.update()
 ```
 
 Now you can search and install binaries:
 
 ```julia
-require("RPMmd")
-RPMmd.install("gtk2")
-RPMmd.install("win_iconv","mingw32")
+require("WinRPM")
+WinRPM.install("gtk2")
+WinRPM.install("win_iconv","mingw32")
 ```
 
 ---
@@ -44,9 +44,9 @@ The functions typically take a second parameter "arch" specifying the package ar
 Package lists can be further filtered and analyzed, as the following example demonstrates:
 
 ```julia
-julia> using RPMmd
+julia> using WinRPM
 
-julia> gtk3_candidates = RPMmd.search("gtk3", "mingw32")
+julia> gtk3_candidates = WinRPM.search("gtk3", "mingw32")
 1. webkitgtk3-debug (mingw32) - Debug information for package mingw32-webkitgtk3
 2. webkitgtk3-lang (mingw32) - Languages for package mingw32-webkitgtk3
 3. webkitgtk3-tools (mingw32) - Library for rendering web content, GTK+ 3 Port (tools)
@@ -70,7 +70,7 @@ Description: GTK+ is a multi-platform toolkit for creating graphical user interf
 Offering a complete set of widgets, GTK+ is suitable for projects
 ranging from small one-off projects to complete application suites.
 
-julia> RPMmd.install(gtk3_pkg)
+julia> WinRPM.install(gtk3_pkg)
 MESSAGE: Installing: libxml2, atk, gdk-pixbuf, liblzma, zlib, libpng, libtiff, pixman, freetype, libffi, glib2-lang, atk-lang, libjpeg, gdk-pixbuf-lang, libharfbuzz, glib2, fontconfig, libcairo2, libjasper, libgcc, libintl, gtk3
 MESSAGE: Downloading: libxml2
 MESSAGE: Extracting: libxml2
@@ -85,5 +85,5 @@ MESSAGE: Extracting: gtk3
 MESSAGE: Success
 
 julia> # or we can just install it directly
-julia> RPMmd.install("gtk3")
+julia> WinRPM.install("gtk3")
 ```
