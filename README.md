@@ -1,6 +1,79 @@
-This is a front-end installer for RPM-md packages.
+Introduction
+============
 
-To use, add the following lines to your `%APPDATA%/julia/.juliarc.jl` file:
+WinRPM is an installer for RPM packages provided by an RPM-md build system.
+The default RPM-md provider is the [OpenSUSE build service](https://build.opensuse.org/),
+which builds 32- and 64-bit DLLs for libraries used by
+several Julia packages (note: builds are cross-compiled).
+
+Installation
+------------
+
+To install WinRPM via the Julia package manager, use:
+
+```julia
+Pkg.add("WinRPM")
+```
+
+Package Availability
+--------------------
+
+To search for a package from within Julia:
+
+```julia
+using WinRPM
+
+WinRPM.search("packagename")
+```
+
+See also: upstream package information for [Win64](https://build.opensuse.org/project/show/windows%3Amingw%3Awin64)
+and [Win32](https://build.opensuse.org/project/show/windows%3Amingw%3Awin32)
+
+Package Installation
+--------------------
+
+To install a library using WinRPM:
+
+```julia
+WinRPM.install("gtk2")
+WinRPM.install("win_iconv","mingw32")
+```
+
+Dependencies
+------------
+
+WinRPM will automatically install dependencies declared in the RPM-md package specification.
+
+BinDeps Integration
+===================
+
+WinRPM may be integrated with the [BinDeps](https://github.com/JuliaLang/BinDeps.jl)
+system by declaring a `provides(WinRPM.RPM...` line for each serviceable dependency.
+
+For example, in the [Tk.jl](https://github.com/JuliaLang/Tk.jl)
+package the following lines declare availability of the `tcl` and `tk` libraries
+from WinRPM:
+
+```julia
+@windows_only begin
+    using WinRPM
+    provides(WinRPM.RPM,"tk",tk,os = :Windows)
+    provides(WinRPM.RPM,"tcl",tcl,os = :Windows)
+end
+```
+
+These lines must be preceded by `BinDeps.library_dependency` declarations;
+please see the BinDeps documentation for more information.
+
+It may also be helpful to review usage examples in Tk.jl or other existing packages
+(see `deps/build.jl`): [Nettle.jl](https://github.com/staticfloat/Nettle.jl)
+[Cairo.jl](https://github.com/JuliaLang/Cairo.jl)
+
+
+Stand-alone Usage
+=================
+
+For stand-alone use, add the following lines to your `%APPDATA%/julia/.juliarc.jl` file:
 
 ```julia
 RPMbindir = Pkg.dir("WinRPM","deps","usr","$(Sys.ARCH)-w64-mingw32","sys-root","mingw","bin")
@@ -8,23 +81,8 @@ push!(DL_LOAD_PATH,RPMbindir)
 ENV["PATH"]=ENV["PATH"]*";"*RPMbindir
 ```
 
-And add the package manager to your julia environment:
-
-```julia
-Pkg.add("WinRPM")
-require("WinRPM")
-WinRPM.update()
-```
-
-Now you can search and install binaries:
-
-```julia
-require("WinRPM")
-WinRPM.install("gtk2")
-WinRPM.install("win_iconv","mingw32")
-```
-
----
+Full API
+========
 
 RPM-md provides the following functions for general usage:
 `update`, `whatprovides`, `search`, `lookup`, and `install`
@@ -40,6 +98,9 @@ RPM-md provides the following functions for general usage:
 `install(pkg)` -- install a package (by name or package identifier), including dependencies, into the `deps` folder
 
 The functions typically take a second parameter "arch" specifying the package architecture for search, defaulting to the current operating system.
+
+Usage Example
+=============
 
 Package lists can be further filtered and analyzed, as the following example demonstrates:
 
