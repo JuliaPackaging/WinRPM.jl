@@ -44,6 +44,12 @@ Dependencies
 
 WinRPM will automatically install dependencies declared in the RPM-md package specification.
 
+Package Creation
+----------------
+
+Please see the OpenSUSE build service [packaging guidelines](http://en.opensuse.org/openSUSE:Packaging_guidelines)
+for further information.
+
 BinDeps Integration
 ===================
 
