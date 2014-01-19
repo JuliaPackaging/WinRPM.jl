@@ -42,7 +42,7 @@ function init()
     update(false, false)
 end
 
-@unix_only download(source::ByteString) = (x=HTTPC.get(source); (x.body,x.http_code))
+@unix_only download(source::ByteString) = (x=HTTPC.get(source); (bytestring(x.body),x.http_code))
 @windows_only function download(source::ByteString)
     #res = ccall((:URLDownloadToFileA,:urlmon),stdcall,Cuint,
     #    (Ptr{Void},Ptr{Uint8},Ptr{Uint8},Cint,Ptr{Void}),
@@ -186,10 +186,10 @@ function lookup(name::String, arch::String=OS_ARCH)
 end
 
 search(x::String, arch::String=OS_ARCH) =
-    Packages(".[in(name,'$x') or in(summary,'$x') or in(description,'$x')]", arch)
+    Packages(".[contains(name,'$x') or contains(summary,'$x') or contains(description,'$x')]", arch)
 
 whatprovides(file::String, arch::String=OS_ARCH) =
-    Packages(".[format/file[in(text(),'$file')]]", arch)
+    Packages(".[format/file[contains(text(),'$file')]]", arch)
 
 rpm_provides(requires::String) =
     Packages(".[format/rpm:provides/rpm:entry[@name='$requires']]")
