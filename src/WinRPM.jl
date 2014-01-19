@@ -145,12 +145,8 @@ immutable Packages{T<:Union(Set{ParsedData},Vector{ParsedData},)}
 end
 Packages{T<:Union(Set{ParsedData},Vector{ParsedData})}(pkgs::T) = Packages{T}(pkgs)
 Packages(pkgs::Vector{Package}) = Packages([p.pd for p in pkgs])
-function Packages(xpath::String, arch::String="")
-    if arch != ""
-        xpath = xpath*"[arch='$arch']"
-    end
-    Packages(packages[xpath])
-end
+Packages(xpath::LibExpat.XPath) = Packages(packages[xpath])
+
 getindex(pkg::Packages,x) = Package(getindex(pkg.p,x))
 Base.length(pkg::Packages) = length(pkg.p)
 Base.isempty(pkg::Packages) = isempty(pkg.p)
@@ -182,17 +178,17 @@ names(pkg::Package) = LibExpat.string_value(pkg["name"][1])
 names(pkgs::Packages) = [names(pkg) for pkg in pkgs]
 
 function lookup(name::String, arch::String=OS_ARCH)    
-    Packages(".[name='$name']", arch)
+    Packages(xpath".[name='$name']['$arch'='' or arch='$arch']")
 end
 
 search(x::String, arch::String=OS_ARCH) =
-    Packages(".[contains(name,'$x') or contains(summary,'$x') or contains(description,'$x')]", arch)
+    Packages(xpath".[contains(name,'$x') or contains(summary,'$x') or contains(description,'$x')]['$arch'='' or arch='$arch']")
 
 whatprovides(file::String, arch::String=OS_ARCH) =
-    Packages(".[format/file[contains(text(),'$file')]]", arch)
+    Packages(xpath".[format/file[contains(text(),'$file')]]['$arch'='' or arch='$arch']")
 
 rpm_provides(requires::String) =
-    Packages(".[format/rpm:provides/rpm:entry[@name='$requires']]")
+    Packages(xpath".[format/rpm:provides/rpm:entry[@name='$requires']]")
 
 function rpm_provides{T<:String}(requires::Union(Vector{T},Set{T}))
     pkgs = Set{ParsedData}()
