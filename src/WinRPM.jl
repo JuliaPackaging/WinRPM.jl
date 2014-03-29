@@ -29,8 +29,8 @@ function init()
     mkdirs(cachedir)
     mkdirs(installdir)
     open(Pkg.dir("WinRPM", "sources.list")) do f
-        global const sources = filter!(readlines(f,chomp)) do l
-            return !isempty(l) && l[1] != '#'
+        global const sources = filter!(readlines(f)) do l
+            return !isempty(chomp(l)) && l[1] != '#'
         end
     end
     installedlist = Pkg.dir("WinRPM", "installed.list")
@@ -299,7 +299,7 @@ end
 
 function install(pkg::Union(Package,Packages); yes = false)
     packages = deps(pkg).p
-    installed_list = readlines(installed,chomp)
+    installed_list = map(chomp, readlines(installed))
     filter!(packages) do p
         for entry in p[xpath"format/rpm:provides/rpm:entry[@name]"]
             provides = entry.attr["name"]
