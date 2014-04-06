@@ -345,10 +345,12 @@ function do_install(package::Package)
     cpio = splitext(path2)[1]*".cpio"
     local err = nothing
     try
-        run(`7z x -y $path2 -o$cache`)
-        run(`7z x -y $cpio -o$installdir`)
-    catch e
-        err = e
+        out1 = readall(`7z x -y $path2 -o$cache`)
+        contains(out1, "Everything is Ok") || println(out1)
+        out2 = readall(`7z x -y $cpio -o$installdir`)
+        contains(out2, "Everything is Ok") || println(out2)
+    catch er
+        err = er
         @unix_only cd(installdir) do
             if success(`rpm2cpio $path2` | `cpio -imud`)
                 err = nothing
@@ -359,7 +361,7 @@ function do_install(package::Package)
         rm(cpio)
     end
     if err !== nothing
-        rethrow(e)
+        rethrow(er)
     end
     for entry in package[xpath"format/rpm:provides/rpm:entry[@name]"]
         provides = entry.attr["name"]
