@@ -5,7 +5,7 @@ using Zlib
 using LibExpat
 using URLParse
 
-import Base: show, getindex
+import Base: show, getindex, wait_close, pipeline_error
 
 #export update, whatprovides, search, lookup, install, deps, help
 
@@ -344,23 +344,21 @@ function do_install(package::Package)
     info("Extracting: ", name)
     cpio = splitext(path2)[1]*".cpio"
     local err = nothing
-    try
-        run(`7z x -y $path2 -o$cache`)
-        run(`7z x -y $cpio -o$installdir`)
-    catch e
-        err = e
-        @unix_only cd(installdir) do
-            if success(`rpm2cpio $path2` | `cpio -imud`)
-                err = nothing
+    for cmd = [`7z x -y $path2 -o$cache`, `7z x -y $cpio -o$installdir`]
+        (out, pc) = readsfrom(cmd)
+        if !success(pc)
+            wait_close(out)
+            println(bytestring(takebuf_array(out.buffer)))
+            err = pc
+            @unix_only cd(installdir) do
+                success(`rpm2cpio $path2` | `cpio -imud`) && err = nothing
             end
+            isfile(cpio) && rm(cpio)
+            err !== nothing && pipeline_error(err)
+            break
         end
     end
-    if isfile(cpio)
-        rm(cpio)
-    end
-    if err !== nothing
-        rethrow(e)
-    end
+    isfile(cpio) && rm(cpio)
     for entry in package[xpath"format/rpm:provides/rpm:entry[@name]"]
         provides = entry.attr["name"]
         println(installed, provides)
