@@ -9,10 +9,6 @@ import Base: show, getindex, wait_close, pipeline_error
 
 #export update, whatprovides, search, lookup, install, deps, help
 
-const cachedir = Pkg.dir("WinRPM", "cache")
-const installdir = Pkg.dir("WinRPM", "deps")
-const packages = ParsedData[]
-
 if OS_NAME == :Windows
     const OS_ARCH = WORD_SIZE == 64 ? "mingw64" : "mingw32"
 else
@@ -25,12 +21,16 @@ function mkdirs(dir)
     end
 end
 
-function init()
+function __init__()
+    global cachedir = Pkg.dir("WinRPM", "cache")
+    global installdir = Pkg.dir("WinRPM", "deps")
+    global packages = ParsedData[]
+
     mkdirs(cachedir)
     mkdirs(installdir)
     open(Pkg.dir("WinRPM", "sources.list")) do f
-        global const sources = filter!(readlines(f)) do l
-            return !isempty(chomp(l)) && l[1] != '#'
+        global const sources = filter!(map(chomp, readlines(f))) do l
+            return !isempty(l) && l[1] != '#'
         end
     end
     installedlist = Pkg.dir("WinRPM", "installed.list")
@@ -42,17 +42,15 @@ function init()
     update(false, false)
 end
 
-@unix_only download(source::ByteString) = (x=HTTPC.get(source); (bytestring(x.body),x.http_code))
-@windows_only function download(source::ByteString)
-    #res = ccall((:URLDownloadToFileA,:urlmon),stdcall,Cuint,
-    #    (Ptr{Void},Ptr{Uint8},Ptr{Uint8},Cint,Ptr{Void}),
-    #    0,source,dest,0,0)
-    dest = Array(Uint8,1000)
-    res = ccall((:URLDownloadToCacheFileA,:urlmon),stdcall,Cuint,
-        (Ptr{Void},Ptr{Uint8},Ptr{Uint8},Clong,Cint,Ptr{Void}),
-        0,source,dest,length(dest),0,0)
+@unix_only download(source::String) = (x=HTTPC.get(source); (bytestring(x.body),x.http_code))
+@windows_only function download(source::String)
+    dest = Array(Uint16,261)
+    res = ccall((:URLDownloadToCacheFileW,:urlmon),stdcall,Cuint,
+        (Ptr{Void},Ptr{Uint16},Ptr{Uint16},Clong,Cint,Ptr{Void}),
+        0,utf16(source),dest,sizeof(dest)>>1,0,0)
     if res == 0
-        filename = bytestring(pointer(dest))
+        resize!(dest, findfirst(dest, 0))
+        filename = utf8(UTF16String(dest))
         if isfile(filename)
             return readall(filename),200
         else
@@ -83,7 +81,7 @@ function update(ignorecache::Bool=false, allow_remote::Bool=true)
                 return readall(path2)
             end
             if !allow_remote
-                warn("skipping $path, not in cache")
+                warn("skipping $path, not in cache -- call WinRPM.update() to download")
                 return nothing
             end
             info("Downloading $source/$path")
@@ -351,7 +349,9 @@ function do_install(package::Package)
             println(bytestring(takebuf_array(out.buffer)))
             err = pc
             @unix_only cd(installdir) do
-                success(`rpm2cpio $path2` | `cpio -imud`) && err = nothing
+                if success(`rpm2cpio $path2` | `cpio -imud`)
+                    err = nothing
+                end
             end
             isfile(cpio) && rm(cpio)
             err !== nothing && pipeline_error(err)
@@ -385,8 +385,6 @@ function help()
 end
 
 include("bindeps.jl")
-
-init()
 
 end
 
