@@ -343,7 +343,7 @@ function do_install(package::Package)
     cpio = splitext(path2)[1]*".cpio"
     local err = nothing
     for cmd = [`7z x -y $path2 -o$cache`, `7z x -y $cpio -o$installdir`]
-        (out, pc) = readsfrom(cmd)
+        (out, pc) = (VERSION > v"0.3-") ? open(cmd,"r") : readsfrom(cmd)
         if !success(pc)
             wait_close(out)
             println(bytestring(takebuf_array(out.buffer)))
