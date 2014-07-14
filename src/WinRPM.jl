@@ -43,22 +43,25 @@ function __init__()
 end
 
 @unix_only download(source::String) = (x=HTTPC.get(source); (bytestring(x.body),x.http_code))
-@windows_only function download(source::String)
+@windows_only function download(source::String; retry = 5)
     dest = Array(Uint16,261)
-    res = ccall((:URLDownloadToCacheFileW,:urlmon),stdcall,Cuint,
-        (Ptr{Void},Ptr{Uint16},Ptr{Uint16},Clong,Cint,Ptr{Void}),
-        0,utf16(source),dest,sizeof(dest)>>1,0,0)
-    if res == 0
-        resize!(dest, findfirst(dest, 0))
-        filename = utf8(UTF16String(dest))
-        if isfile(filename)
-            return readall(filename),200
+    for i in 1:retry
+        res = ccall((:URLDownloadToCacheFileW,:urlmon),stdcall,Cuint,
+          (Ptr{Void},Ptr{Uint16},Ptr{Uint16},Clong,Cint,Ptr{Void}),
+          0,utf16(source),dest,sizeof(dest)>>1,0,0)
+    
+        if res == 0
+            resize!(dest, findfirst(dest, 0))
+            filename = utf8(UTF16String(dest))
+            if isfile(filename)
+                return readall(filename),200
+            end
         else
-            return "",0
+            warn("Unknown download failure, error code: $res")
         end
-    else
-        return "",0
+        warn("Retry $i/$retry downloading: $source")
     end
+    return "",0
 end
 
 function update(ignorecache::Bool=false, allow_remote::Bool=true)
