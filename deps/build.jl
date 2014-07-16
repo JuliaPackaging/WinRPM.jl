@@ -1,0 +1,2 @@
+using WinRPM
+WinRPM.update()
