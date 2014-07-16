@@ -22,23 +22,21 @@ function mkdirs(dir)
 end
 
 function __init__()
+    global packages = ParsedData[]
     global cachedir = Pkg.dir("WinRPM", "cache")
     global installdir = Pkg.dir("WinRPM", "deps")
-    global packages = ParsedData[]
+    indexpath = joinpath(cachedir, "index")
+    global const cacheindex = open(indexpath, isfile(indexpath)?"r+":"w+")
 
     mkdirs(cachedir)
     mkdirs(installdir)
-    open(Pkg.dir("WinRPM", "sources.list")) do f
+    open(joinpath(dirname(@__FILE__), "..", "sources.list")) do f
         global const sources = filter!(map(chomp, readlines(f))) do l
             return !isempty(l) && l[1] != '#'
         end
     end
-    installedlist = Pkg.dir("WinRPM", "installed.list")
-    if !isfile(installedlist)
-        global const installed = open(installedlist, "w+")
-    else
-        global const installed = open(installedlist, "r+")
-    end
+    installedlist = joinpath(dirname(@__FILE__), "..", "installed.list")
+    global const installed = open(installedlist, isfile(installedlist)?"r+":"w+")
     update(false, false)
 end
 
@@ -64,15 +62,62 @@ end
     return "",0
 end
 
+getcachedir(source) = getcachedir(cachedir, source)
+function getcachedir(cachedir, source)
+    seek(cacheindex,0)
+    lines = readlines(cacheindex)
+    for (idx,line) in enumerate(lines)
+        if !beginswith(line,'#') && ' ' in line
+            stri, src = split(chomp(line),' ',2)
+            cache = joinpath(cachedir, stri)
+            if !isdir(cache)
+                # remove this directory from the list,
+                # write out the new cacheindex file
+                # and restart
+                seek(cacheindex, 0)
+                truncate(cacheindex, 0)
+                for (idx2,l) in enumerate(lines)
+                    if idx == idx2
+                        write(cacheindex,'#')
+                    end
+                    write(cacheindex,l)
+                end
+                empty!(lines)
+                return getcachedir(source)
+            end
+            if source == src
+                return cache
+            end
+        end
+    end
+    # not found in existing cache
+    i = 0
+    local stri, cache
+    while true
+        i += 1
+        stri = string(i)
+        cache = joinpath(cachedir, stri)
+        if !ispath(cache)
+            try
+                mkdir(cache)
+                break
+            end
+        end
+    end
+    seekend(cacheindex)
+    println(cacheindex, stri, ' ', source)
+    flush(cacheindex)
+    return cache
+end
+
 function update(ignorecache::Bool=false, allow_remote::Bool=true)
     global sources, packages
     empty!(packages)
     for source in sources
-        if source == ""
+        if source == "" || '\r' in source || '\n' in source
             continue
         end
-        cache = joinpath(cachedir, escape(source))
-        mkdirs(cache)
+        cache = getcachedir(source)
         function cacheget(path::ASCIIString, never_cache::Bool)
             gunzip = false
             path2 = joinpath(cache,escape(path))
@@ -221,6 +266,12 @@ function rpm_url(pkg::Package)
     url = baseurl, href
 end
 
+function rpm_ver(pkg::Union(Package,ParsedData))
+    return (pkg[xpath"version/@ver"][1],
+            pkg[xpath"version/@rel"][1],
+            pkg[xpath"version/@epoch"][1])
+end
+
 type RPMVersionNumber
     s::String
 end
@@ -270,7 +321,6 @@ function deps(pkg::Union(Package,Packages))
     add = rpm_provides(rpm_requires(pkg))
     packages::Vector{ParsedData}
     reqd = String[]
-    seek(installed,0)
     if isa(pkg,Packages)
         packages = [p for p in pkg.p]
     else
@@ -300,25 +350,66 @@ end
 
 function install(pkg::Union(Package,Packages); yes = false)
     packages = deps(pkg).p
-    installed_list = map(chomp, readlines(installed))
+    seek(installed,0)
+    installed_list = Vector{String}[]
+    for line in eachline(installed)
+        ln = split(chomp(line),' ',2)
+        if length(ln) == 2
+            push!(installed_list, ln)
+        end
+    end
+    toupdate = ParsedData[]
     filter!(packages) do p
+        ver = replace(join(rpm_ver(p),','),r"\s","")
+        oldver = false
         for entry in p[xpath"format/rpm:provides/rpm:entry[@name]"]
             provides = entry.attr["name"]
-            if !in(installed_list, provides)
+            maybe_oldver = false
+            anyver = false
+            for installed in installed_list
+                if installed[2] == provides
+                    anyver = true
+                    if ver == installed[1]
+                        maybe_oldver = false
+                        break
+                    end
+                    maybe_oldver = true
+                end
+            end
+            if !anyver
                 return true
             end
+            oldver |= maybe_oldver
+        end
+        if oldver
+            push!(toupdate, p)
         end
         return false
     end
-    if isempty(packages)
+    if isempty(packages) && isempty(toupdate)
         info("Nothing to do")
     else
+        toup = Packages(reverse!(toupdate))
         todo = Packages(reverse!(packages))
-        info("Packages to install: ", join(names(todo), ", "))
-        if yes || prompt_ok("Continue with install")
-            do_install(todo)
-            info("Success")
+        if !isempty(toup)
+            info("Packages to update:  ", join(names(toup), ", "))
+            yesold = yes || prompt_ok("Continue with updates")
+        else
+            yesold = false
         end
+        if !isempty(todo)
+            info("Packages to install: ", join(names(todo), ", "))
+            yesnew = yes || prompt_ok("Continue with install")
+        else
+            yesnew = false
+        end
+        if yesold
+            do_install(toup)
+        end
+        if yesnew
+            do_install(todo)
+        end
+        info("Complete")
     end
 end
 
@@ -337,7 +428,7 @@ function do_install(package::Package)
         info("try running WinRPM.update() and retrying the install")
         error("failed to download $name $(data[2]) from $source/$path.")
     end
-    cache = joinpath(cachedir,escape(source))
+    cache = getcachedir(source)
     path2 = joinpath(cache,escape(path))
     open(path2, "w") do f
         write(f, data[1])
@@ -362,9 +453,11 @@ function do_install(package::Package)
         end
     end
     isfile(cpio) && rm(cpio)
+    ver = replace(join(rpm_ver(package),','),r"\s","")
     for entry in package[xpath"format/rpm:provides/rpm:entry[@name]"]
         provides = entry.attr["name"]
-        println(installed, provides)
+        seekend(installed)
+        println(installed, ver, ' ', provides)
     end
     flush(installed)
 end
