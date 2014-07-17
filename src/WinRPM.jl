@@ -21,22 +21,24 @@ function mkdirs(dir)
     end
 end
 
+global const packages = ParsedData[]
+
 function __init__()
-    global packages = ParsedData[]
+    empty!(packages)
     global cachedir = Pkg.dir("WinRPM", "cache")
     global installdir = Pkg.dir("WinRPM", "deps")
     indexpath = joinpath(cachedir, "index")
-    global const cacheindex = open(indexpath, isfile(indexpath)?"r+":"w+")
+    global cacheindex = open(indexpath, isfile(indexpath)?"r+":"w+")
 
     mkdirs(cachedir)
     mkdirs(installdir)
     open(joinpath(dirname(@__FILE__), "..", "sources.list")) do f
-        global const sources = filter!(map(chomp, readlines(f))) do l
+        global sources = filter!(map(chomp, readlines(f))) do l
             return !isempty(l) && l[1] != '#'
         end
     end
     installedlist = joinpath(dirname(@__FILE__), "..", "installed.list")
-    global const installed = open(installedlist, isfile(installedlist)?"r+":"w+")
+    global installed = open(installedlist, isfile(installedlist)?"r+":"w+")
     update(false, false)
 end
 
@@ -44,13 +46,22 @@ end
 @windows_only function download(source::String; retry = 5)
     dest = Array(Uint16,261)
     for i in 1:retry
-        res = ccall((:URLDownloadToCacheFileW,:urlmon),stdcall,Cuint,
-          (Ptr{Void},Ptr{Uint16},Ptr{Uint16},Clong,Cint,Ptr{Void}),
-          0,utf16(source),dest,sizeof(dest)>>1,0,0)
-    
+        if VERSION >= v"0.3-"
+            res = ccall((:URLDownloadToCacheFileW,:urlmon),stdcall,Cuint,
+              (Ptr{Void},Ptr{Uint16},Ptr{Uint16},Clong,Cint,Ptr{Void}),
+              0,utf16(source),dest,sizeof(dest)>>1,0,0)
+        else
+            res = ccall((:URLDownloadToCacheFileA,:urlmon),stdcall,Cuint,
+              (Ptr{Void},Ptr{Uint8},Ptr{Uint8},Clong,Cint,Ptr{Void}),
+              0,bytestring(source),convert(Ptr{Uint8},pointer(dest)),sizeof(dest),0,0)
+        end
         if res == 0
             resize!(dest, findfirst(dest, 0))
-            filename = utf8(UTF16String(dest))
+            if VERSION >= v"0.3-"
+                filename = utf8(UTF16String(dest))
+            else
+                filename = bytestring(convert(Ptr{Uint8},pointer(dest)))
+            end
             if isfile(filename)
                 return readall(filename),200
             end
@@ -201,29 +212,35 @@ Base.next(pkg::Packages,x) = ((p,s)=next(pkg.p,x); (Package(p),s))
 Base.done(pkg::Packages,x) = done(pkg.p,x)
 
 function show(io::IO, pkg::Package)
-    println(io,"Name: ", names(pkg))
-    println(io,"Summary: ", LibExpat.string_value(pkg["summary"][1]))
+    println(io,"WinRPM Package: ")
+    println(io,"  Name: ", names(pkg))
+    println(io,"  Summary: ", LibExpat.string_value(pkg["summary"][1]))
     ver = pkg["version"][1]
-    println(io,"Version: ", ver.attr["ver"], " (rel ", ver.attr["rel"], ")")
-    println(io,"Arch: ", LibExpat.string_value(pkg["arch"][1]))
-    println(io,"URL: ", LibExpat.string_value(pkg["url"][1]))
-    println(io,"License: ", LibExpat.string_value(pkg["format/rpm:license"][1]))
-    println(io,"Description: ", LibExpat.string_value(pkg["description"][1]))
+    println(io,"  Version: ", ver.attr["ver"], " (rel ", ver.attr["rel"], ")")
+    println(io,"  Arch: ", LibExpat.string_value(pkg["arch"][1]))
+    println(io,"  URL: ", LibExpat.string_value(pkg["url"][1]))
+    println(io,"  License: ", LibExpat.string_value(pkg["format/rpm:license"][1]))
+    println(io,"  Description: ", replace(LibExpat.string_value(pkg["description"][1]),r"\r\n|\r|\n","\n    "))
 end
 
 function show(io::IO, pkgs::Packages)
-    for (i,pkg) = enumerate(pkgs)
-        name = names(pkg)
-        summary = LibExpat.string_value(pkg["summary"][1])
-        arch = LibExpat.string_value(pkg["arch"][1])
-        println(io,"$i. $name ($arch) - $summary")
+    println(io, "WinRPM Package Set:")
+    if isempty(pkgs)
+        println(io, "  <empty>")
+    else
+        for (i,pkg) = enumerate(pkgs)
+            name = names(pkg)
+            summary = LibExpat.string_value(pkg["summary"][1])
+            arch = LibExpat.string_value(pkg["arch"][1])
+            println(io,"  $i. $name ($arch) - $summary")
+        end
     end
 end
 
 names(pkg::Package) = LibExpat.string_value(pkg["name"][1])
 names(pkgs::Packages) = [names(pkg) for pkg in pkgs]
 
-function lookup(name::String, arch::String=OS_ARCH)    
+function lookup(name::String, arch::String=OS_ARCH)
     Packages(xpath".[name='$name']['$arch'='' or arch='$arch']")
 end
 
@@ -322,7 +339,7 @@ function deps(pkg::Union(Package,Packages))
     packages::Vector{ParsedData}
     reqd = String[]
     if isa(pkg,Packages)
-        packages = [p for p in pkg.p]
+        packages = ParsedData[p for p in pkg.p]
     else
         packages = ParsedData[pkg.pd,]
     end
@@ -349,6 +366,33 @@ function install(pkgs::Vector{ASCIIString}, arch = OS_ARCH; yes = false)
 end
 
 function install(pkg::Union(Package,Packages); yes = false)
+    todo, toup = prepare_install(pkg)
+    if isempty(todo) && isempty(toup)
+        info("Nothing to do")
+    else
+        if !isempty(toup)
+            info("Packages to update:  ", join(names(toup), ", "))
+            yesold = yes || prompt_ok("Continue with updates")
+        else
+            yesold = false
+        end
+        if !isempty(todo)
+            info("Packages to install: ", join(names(todo), ", "))
+            yesnew = yes || prompt_ok("Continue with install")
+        else
+            yesnew = false
+        end
+        if yesold
+            do_install(toup)
+        end
+        if yesnew
+            do_install(todo)
+        end
+        info("Complete")
+    end
+end
+
+function prepare_install(pkg::Union(Package,Packages))
     packages = deps(pkg).p
     seek(installed,0)
     installed_list = Vector{String}[]
@@ -386,31 +430,9 @@ function install(pkg::Union(Package,Packages); yes = false)
         end
         return false
     end
-    if isempty(packages) && isempty(toupdate)
-        info("Nothing to do")
-    else
-        toup = Packages(reverse!(toupdate))
-        todo = Packages(reverse!(packages))
-        if !isempty(toup)
-            info("Packages to update:  ", join(names(toup), ", "))
-            yesold = yes || prompt_ok("Continue with updates")
-        else
-            yesold = false
-        end
-        if !isempty(todo)
-            info("Packages to install: ", join(names(todo), ", "))
-            yesnew = yes || prompt_ok("Continue with install")
-        else
-            yesnew = false
-        end
-        if yesold
-            do_install(toup)
-        end
-        if yesnew
-            do_install(todo)
-        end
-        info("Complete")
-    end
+    toup = Packages(reverse!(toupdate))
+    todo = Packages(reverse!(packages))
+    return todo, toup
 end
 
 function do_install(packages::Packages)
@@ -481,6 +503,8 @@ function help()
 end
 
 include("bindeps.jl")
+
+VERSION < v"0.3-" && __init__()
 
 end
 
