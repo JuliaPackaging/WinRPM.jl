@@ -1,13 +1,14 @@
 # BinDeps integration
 
 using BinDeps
-import BinDeps: PackageManager, can_use, package_available, available_version, libdir, generate_steps, LibraryDependency, provider
+import BinDeps: PackageManager, can_use, package_available, available_version, libdir, generate_steps, LibraryDependency, provider, pkg_name
 
 update_once = true
 
 type RPM <: PackageManager 
     package
 end
+
 can_use(::Type{RPM}) = OS_NAME == :Windows
 function package_available(p::RPM) 
     global update_once::Bool
@@ -25,6 +26,7 @@ end
 
 available_version(p::RPM) = lookup(p.package).p[1][xpath"version/@ver"][1]
 libdir(p::RPM,dep) = Pkg.dir("WinRPM","deps","usr","$(Sys.ARCH)-w64-mingw32","sys-root","mingw","bin")
+pkg_name(p::RPM) = p.package
 
 provider(::Type{RPM},packages::Vector{ASCIIString}; opts...) = RPM(packages)
 
