@@ -3,7 +3,7 @@ module WinRPM
 @unix_only using HTTPClient.HTTPC
 using Zlib
 using LibExpat
-using URLParse
+using URIParser
 
 import Base: show, getindex, wait_close, pipeline_error
 
