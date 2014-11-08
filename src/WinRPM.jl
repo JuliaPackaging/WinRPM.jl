@@ -27,8 +27,7 @@ function __init__()
     empty!(packages)
     global cachedir = Pkg.dir("WinRPM", "cache")
     global installdir = Pkg.dir("WinRPM", "deps")
-    indexpath = joinpath(cachedir, "index")
-    global cacheindex = open(indexpath, isfile(indexpath)?"r+":"w+")
+    global indexpath = joinpath(cachedir, "index")
 
     mkdirs(cachedir)
     mkdirs(installdir)
@@ -37,8 +36,7 @@ function __init__()
             return !isempty(l) && l[1] != '#'
         end
     end
-    installedlist = joinpath(dirname(@__FILE__), "..", "installed.list")
-    global installed = open(installedlist, isfile(installedlist)?"r+":"w+")
+    global installedlist = joinpath(dirname(@__FILE__), "..", "installed.list")
     update(false, false)
 end
 
@@ -75,49 +73,51 @@ end
 
 getcachedir(source) = getcachedir(cachedir, source)
 function getcachedir(cachedir, source)
-    seek(cacheindex,0)
-    lines = readlines(cacheindex)
-    for (idx,line) in enumerate(lines)
-        if !beginswith(line,'#') && ' ' in line
-            stri, src = split(chomp(line),' ',2)
-            cache = joinpath(cachedir, stri)
-            if !isdir(cache)
-                # remove this directory from the list,
-                # write out the new cacheindex file
-                # and restart
-                seek(cacheindex, 0)
-                truncate(cacheindex, 0)
-                for (idx2,l) in enumerate(lines)
-                    if idx == idx2
-                        write(cacheindex,'#')
+    open(indexpath, isfile(indexpath)?"r+":"w+") do cacheindex
+        seek(cacheindex,0)
+        lines = readlines(cacheindex)
+        for (idx,line) in enumerate(lines)
+            if !beginswith(line,'#') && ' ' in line
+                stri, src = split(chomp(line),' ',2)
+                cache = joinpath(cachedir, stri)
+                if !isdir(cache)
+                    # remove this directory from the list,
+                    # write out the new cacheindex file
+                    # and restart
+                    seek(cacheindex, 0)
+                    truncate(cacheindex, 0)
+                    for (idx2,l) in enumerate(lines)
+                        if idx == idx2
+                            write(cacheindex,'#')
+                        end
+                        write(cacheindex,l)
                     end
-                    write(cacheindex,l)
+                    empty!(lines)
+                    return getcachedir(source)
                 end
-                empty!(lines)
-                return getcachedir(source)
-            end
-            if source == src
-                return cache
+                if source == src
+                    return cache
+                end
             end
         end
-    end
-    # not found in existing cache
-    i = 0
-    local stri, cache
-    while true
-        i += 1
-        stri = string(i)
-        cache = joinpath(cachedir, stri)
-        if !ispath(cache)
-            try
-                mkdir(cache)
-                break
+        # not found in existing cache
+        i = 0
+        local stri, cache
+        while true
+            i += 1
+            stri = string(i)
+            cache = joinpath(cachedir, stri)
+            if !ispath(cache)
+                try
+                    mkdir(cache)
+                    break
+                end
             end
         end
+        seekend(cacheindex)
+        println(cacheindex, stri, ' ', source)
+        flush(cacheindex)
     end
-    seekend(cacheindex)
-    println(cacheindex, stri, ' ', source)
-    flush(cacheindex)
     return cache
 end
 
@@ -394,12 +394,14 @@ end
 
 function prepare_install(pkg::Union(Package,Packages))
     packages = deps(pkg).p
-    seek(installed,0)
-    installed_list = Vector{String}[]
-    for line in eachline(installed)
-        ln = split(chomp(line),' ',2)
-        if length(ln) == 2
-            push!(installed_list, ln)
+    open(installedlist, isfile(installedlist)?"r+":"w+") do installed
+        seek(installed,0)
+        installed_list = Vector{String}[]
+        for line in eachline(installed)
+            ln = split(chomp(line),' ',2)
+            if length(ln) == 2
+                push!(installed_list, ln)
+            end
         end
     end
     toupdate = ParsedData[]
@@ -476,12 +478,14 @@ function do_install(package::Package)
     end
     isfile(cpio) && rm(cpio)
     ver = replace(join(rpm_ver(package),','),r"\s","")
-    for entry in package[xpath"format/rpm:provides/rpm:entry[@name]"]
-        provides = entry.attr["name"]
-        seekend(installed)
-        println(installed, ver, ' ', provides)
+    open(installedlist, isfile(installedlist)?"r+":"w+") do installed
+        for entry in package[xpath"format/rpm:provides/rpm:entry[@name]"]
+            provides = entry.attr["name"]
+            seekend(installed)
+            println(installed, ver, ' ', provides)
+        end
+        flush(installed)
     end
-    flush(installed)
 end
 
 function prompt_ok(question)
