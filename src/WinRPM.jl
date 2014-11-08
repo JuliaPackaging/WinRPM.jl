@@ -117,8 +117,8 @@ function getcachedir(cachedir, source)
         seekend(cacheindex)
         println(cacheindex, stri, ' ', source)
         flush(cacheindex)
+        return cache
     end
-    return cache
 end
 
 function update(ignorecache::Bool=false, allow_remote::Bool=true)
@@ -403,38 +403,38 @@ function prepare_install(pkg::Union(Package,Packages))
                 push!(installed_list, ln)
             end
         end
-    end
-    toupdate = ParsedData[]
-    filter!(packages) do p
-        ver = replace(join(rpm_ver(p),','),r"\s","")
-        oldver = false
-        for entry in p[xpath"format/rpm:provides/rpm:entry[@name]"]
-            provides = entry.attr["name"]
-            maybe_oldver = false
-            anyver = false
-            for installed in installed_list
-                if installed[2] == provides
-                    anyver = true
-                    if ver == installed[1]
-                        maybe_oldver = false
-                        break
+        toupdate = ParsedData[]
+        filter!(packages) do p
+            ver = replace(join(rpm_ver(p),','),r"\s","")
+            oldver = false
+            for entry in p[xpath"format/rpm:provides/rpm:entry[@name]"]
+                provides = entry.attr["name"]
+                maybe_oldver = false
+                anyver = false
+                for installed in installed_list
+                    if installed[2] == provides
+                        anyver = true
+                        if ver == installed[1]
+                            maybe_oldver = false
+                            break
+                        end
+                        maybe_oldver = true
                     end
-                    maybe_oldver = true
                 end
+                if !anyver
+                    return true
+                end
+                oldver |= maybe_oldver
             end
-            if !anyver
-                return true
+            if oldver
+                push!(toupdate, p)
             end
-            oldver |= maybe_oldver
+            return false
         end
-        if oldver
-            push!(toupdate, p)
-        end
-        return false
+        toup = Packages(reverse!(toupdate))
+        todo = Packages(reverse!(packages))
+        return todo, toup
     end
-    toup = Packages(reverse!(toupdate))
-    todo = Packages(reverse!(packages))
-    return todo, toup
 end
 
 function do_install(packages::Packages)
