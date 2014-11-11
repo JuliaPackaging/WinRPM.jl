@@ -3,7 +3,6 @@ WinRPM.update()
 
 # update julia's gcc dlls
 @windows_only begin
-    needs_update = false
     dlls = ["libgfortran-3", "libquadmath-0", "libstdc++-6", "libssp-0",
         WORD_SIZE==32 ? "libgcc_s_sjlj-1" : "libgcc_s_seh-1"]
     dlls_to_update = ASCIIString[]
