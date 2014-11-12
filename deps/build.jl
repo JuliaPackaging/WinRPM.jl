@@ -20,9 +20,12 @@ WinRPM.update()
                     joinpath(JULIA_HOME, lib * ".dll"))
             end
             info("Updated Julia's gcc dlls, you may need to restart Julia for some WinRPM packages to work.")
-        catch
+        catch err
+            buf = PipeBuffer()
+            showerror(buf, err)
             warn("Could not update Julia's gcc dlls, some WinRPM packages may not work.\n" *
-                "Try running Julia as administrator and calling `Pkg.build(\"WinRPM\")`")
+                "Error was: $(readall(buf))\n" *
+                "Try running Julia as administrator and calling `Pkg.build(\"WinRPM\")`.")
         end
     end
 end
