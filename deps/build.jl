@@ -19,7 +19,7 @@ WinRPM.update()
                 cp(joinpath(WinRPM.installdir, "usr", Sys.MACHINE, "sys-root", "mingw", "bin", lib * ".dll"),
                     joinpath(JULIA_HOME, lib * ".dll"))
             end
-            info("Updated Julia's gcc dlls, you may need to restart Julia for some WinRPM packages to work.")
+            warn("Updated Julia's gcc dlls, you may need to restart Julia for some WinRPM packages to work.")
         catch err
             buf = PipeBuffer()
             showerror(buf, err)
