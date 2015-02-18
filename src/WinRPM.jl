@@ -1,6 +1,7 @@
 module WinRPM
 
 @unix_only using HTTPClient.HTTPC
+using Compat
 using Zlib
 using LibExpat
 using URIParser
@@ -77,8 +78,8 @@ function getcachedir(cachedir, source)
         seek(cacheindex,0)
         lines = readlines(cacheindex)
         for (idx,line) in enumerate(lines)
-            if !beginswith(line,'#') && ' ' in line
-                stri, src = split(chomp(line),' ',2)
+            if !startswith(line,'#') && ' ' in line
+                stri, src = @compat split(chomp(line), ' ', limit=2)
                 cache = joinpath(cachedir, stri)
                 if !isdir(cache)
                     # remove this directory from the list,
@@ -171,7 +172,7 @@ function update(ignorecache::Bool=false, allow_remote::Bool=true)
                 for pkg in pkgs[xpath".[arch='noarch' or arch='src'][starts-with(name,'mingw32-') or starts-with(name, 'mingw64-')]"]
                     name = pkg[xpath"name"][1]
                     arch = pkg[xpath"arch"][1]
-                    new_arch, new_name = split(LibExpat.string_value(name), '-', 2)
+                    new_arch, new_name = @compat split(LibExpat.string_value(name), '-', limit=2)
                     old_arch = LibExpat.string_value(arch)
                     if old_arch != "noarch"
                         new_arch = "$new_arch-$old_arch"
@@ -398,7 +399,7 @@ function prepare_install(pkg::Union(Package,Packages))
         seek(installed,0)
         installed_list = Vector{String}[]
         for line in eachline(installed)
-            ln = split(chomp(line),' ',2)
+            ln = @compat split(chomp(line), ' ', limit=2)
             if length(ln) == 2
                 push!(installed_list, ln)
             end
