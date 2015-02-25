@@ -26,8 +26,8 @@ global const packages = ParsedData[]
 
 function __init__()
     empty!(packages)
-    global cachedir = Pkg.dir("WinRPM", "cache")
-    global installdir = Pkg.dir("WinRPM", "deps")
+    global cachedir = joinpath(dirname(dirname(@__FILE__)), "cache")
+    global installdir = joinpath(dirname(dirname(@__FILE__)), "deps")
     global indexpath = joinpath(cachedir, "index")
 
     mkdirs(cachedir)
@@ -504,7 +504,7 @@ function prompt_ok(question)
 end
 
 function help()
-    less(Pkg.dir("WinRPM","README.md"))
+    less(joinpath(dirname(dirname(@__FILE__)),"README.md"))
 end
 
 include("bindeps.jl")
