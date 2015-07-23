@@ -52,7 +52,7 @@ end
         else
             res = ccall((:URLDownloadToCacheFileA,:urlmon),stdcall,Cuint,
               (Ptr{Void},Ptr{Uint8},Ptr{Uint8},Clong,Cint,Ptr{Void}),
-              C_NULL,bytestring(source),unsafe_convert(Ptr{Uint8},pointer(dest)),sizeof(dest),0,C_NULL)
+              C_NULL,bytestring(source),convert(Ptr{Uint8},pointer(dest)),sizeof(dest),0,C_NULL)
         end
         if res == 0
             resize!(dest, findfirst(dest, 0))
