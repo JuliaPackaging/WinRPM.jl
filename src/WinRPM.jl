@@ -48,11 +48,11 @@ end
         if VERSION >= v"0.3-"
             res = ccall((:URLDownloadToCacheFileW,:urlmon),stdcall,Cuint,
               (Ptr{Void},Ptr{Uint16},Ptr{Uint16},Clong,Cint,Ptr{Void}),
-              0,utf16(source),dest,sizeof(dest)>>1,0,0)
+              C_NULL,utf16(source),dest,sizeof(dest)>>1,0,C_NULL)
         else
             res = ccall((:URLDownloadToCacheFileA,:urlmon),stdcall,Cuint,
               (Ptr{Void},Ptr{Uint8},Ptr{Uint8},Clong,Cint,Ptr{Void}),
-              0,bytestring(source),convert(Ptr{Uint8},pointer(dest)),sizeof(dest),0,0)
+              C_NULL,bytestring(source),unsafe_convert(Ptr{Uint8},pointer(dest)),sizeof(dest),0,C_NULL)
         end
         if res == 0
             resize!(dest, findfirst(dest, 0))
