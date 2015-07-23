@@ -507,7 +507,7 @@ function help()
     less(joinpath(dirname(dirname(@__FILE__)),"README.md"))
 end
 
-include("bindeps.jl")
+include("winrpm_bindeps.jl")
 
 VERSION < v"0.3-" && __init__()
 
