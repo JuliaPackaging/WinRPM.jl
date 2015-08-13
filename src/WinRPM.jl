@@ -463,9 +463,10 @@ function do_install(package::Package)
     local err = nothing
     for cmd = [`7z x -y $path2 -o$cache`, `7z x -y $cpio -o$installdir`]
         (out, pc) = (VERSION > v"0.3-") ? open(cmd,"r") : readsfrom(cmd)
+        stdoutstr = readall(out)
         if !success(pc)
             wait_close(out)
-            println(bytestring(takebuf_array(out.buffer)))
+            println(stdoutstr)
             err = pc
             @unix_only cd(installdir) do
                 if success(`rpm2cpio $path2` | `cpio -imud`)
