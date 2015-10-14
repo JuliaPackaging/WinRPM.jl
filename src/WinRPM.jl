@@ -41,25 +41,25 @@ function __init__()
     update(false, false)
 end
 
-@unix_only download(source::String) = (x=HTTPC.get(source); (bytestring(x.body),x.http_code))
-@windows_only function download(source::String; retry = 5)
-    dest = Array(Uint16,261)
+@unix_only download(source::AbstractString) = (x=HTTPC.get(source); (bytestring(x.body),x.http_code))
+@windows_only function download(source::AbstractString; retry = 5)
+    dest = Array(UInt16,261)
     for i in 1:retry
         if VERSION >= v"0.3-"
             res = ccall((:URLDownloadToCacheFileW,:urlmon),stdcall,Cuint,
-              (Ptr{Void},Ptr{Uint16},Ptr{Uint16},Clong,Cint,Ptr{Void}),
+              (Ptr{Void},Ptr{UInt16},Ptr{UInt16},Clong,Cint,Ptr{Void}),
               C_NULL,utf16(source),dest,sizeof(dest)>>1,0,C_NULL)
         else
             res = ccall((:URLDownloadToCacheFileA,:urlmon),stdcall,Cuint,
-              (Ptr{Void},Ptr{Uint8},Ptr{Uint8},Clong,Cint,Ptr{Void}),
-              C_NULL,bytestring(source),convert(Ptr{Uint8},pointer(dest)),sizeof(dest),0,C_NULL)
+              (Ptr{Void},Ptr{UInt8},Ptr{UInt8},Clong,Cint,Ptr{Void}),
+              C_NULL,bytestring(source),convert(Ptr{UInt8},pointer(dest)),sizeof(dest),0,C_NULL)
         end
         if res == 0
             resize!(dest, findfirst(dest, 0))
             if VERSION >= v"0.3-"
                 filename = utf8(UTF16String(dest))
             else
-                filename = bytestring(convert(Ptr{Uint8},pointer(dest)))
+                filename = bytestring(convert(Ptr{UInt8},pointer(dest)))
             end
             if isfile(filename)
                 return readall(filename),200
@@ -198,10 +198,10 @@ Package(p::Vector{ParsedData}) = [Package(pkg) for pkg in p]
 
 getindex(pkg::Package,x) = getindex(pkg.pd,x)
 
-immutable Packages{T<:Union(Set{ParsedData},Vector{ParsedData},)}
+@compat immutable Packages{T<:Union{Set{ParsedData},Vector{ParsedData},}}
     p::T
 end
-Packages{T<:Union(Set{ParsedData},Vector{ParsedData})}(pkgs::T) = Packages{T}(pkgs)
+Packages{T<:Union{Set{ParsedData},Vector{ParsedData}}}(pkgs::T) = Packages{T}(pkgs)
 Packages(pkgs::Vector{Package}) = Packages([p.pd for p in pkgs])
 Packages(xpath::LibExpat.XPath) = Packages(packages[xpath])
 
@@ -241,20 +241,20 @@ end
 names(pkg::Package) = LibExpat.string_value(pkg["name"][1])
 names(pkgs::Packages) = [names(pkg) for pkg in pkgs]
 
-function lookup(name::String, arch::String=OS_ARCH)
+function lookup(name::AbstractString, arch::AbstractString=OS_ARCH)
     Packages(xpath".[name='$name']['$arch'='' or arch='$arch']")
 end
 
-search(x::String, arch::String=OS_ARCH) =
+search(x::AbstractString, arch::AbstractString=OS_ARCH) =
     Packages(xpath".[contains(name,'$x') or contains(summary,'$x') or contains(description,'$x')]['$arch'='' or arch='$arch']")
 
-whatprovides(file::String, arch::String=OS_ARCH) =
+whatprovides(file::AbstractString, arch::AbstractString=OS_ARCH) =
     Packages(xpath".[format/file[contains(text(),'$file')]]['$arch'='' or arch='$arch']")
 
-rpm_provides(requires::String) =
+rpm_provides(requires::AbstractString) =
     Packages(xpath".[format/rpm:provides/rpm:entry[@name='$requires']]")
 
-function rpm_provides{T<:String}(requires::Union(Vector{T},Set{T}))
+@compat function rpm_provides{T<:AbstractString}(requires::Union{Vector{T},Set{T}})
     pkgs = Set{ParsedData}()
     for x in requires
         pkgs_ = rpm_provides(x)
@@ -269,8 +269,8 @@ end
 
 rpm_requires(x::Package) = x[xpath"format/rpm:requires/rpm:entry/@name"]
 
-function rpm_requires(xs::Union(Vector{Package},Set{Package},Packages))
-    requires = Set{String}()
+@compat function rpm_requires(xs::Union{Vector{Package},Set{Package},Packages})
+    requires = Set{AbstractString}()
     for x in xs
         union!(requires, rpm_requires(x))
     end
@@ -284,16 +284,16 @@ function rpm_url(pkg::Package)
     url = baseurl, href
 end
 
-function rpm_ver(pkg::Union(Package,ParsedData))
+@compat function rpm_ver(pkg::Union{Package,ParsedData})
     return (pkg[xpath"version/@ver"][1],
             pkg[xpath"version/@rel"][1],
             pkg[xpath"version/@epoch"][1])
 end
 
 type RPMVersionNumber
-    s::String
+    s::AbstractString
 end
-Base.convert(::Type{RPMVersionNumber}, s::String) = RPMVersionNumber(s)
+Base.convert(::Type{RPMVersionNumber}, s::AbstractString) = RPMVersionNumber(s)
 Base.(:(<))(a::RPMVersionNumber,b::RPMVersionNumber) = false
 Base.(:(==))(a::RPMVersionNumber,b::RPMVersionNumber) = true
 Base.(:(<=))(a::RPMVersionNumber,b::RPMVersionNumber) = (a==b)||(a<b)
@@ -309,7 +309,7 @@ function getepoch(pkg::Package)
         int(epoch[1])
     end
 end
-function select(pkgs::Packages, pkg::String)
+function select(pkgs::Packages, pkg::AbstractString)
     if length(pkgs) == 0
         error("Package candidate for $pkg not found")
     elseif length(pkgs) == 1
@@ -334,11 +334,11 @@ function select(pkgs::Packages, pkg::String)
     pkg
 end
 
-deps(pkg::String, arch::String=OS_ARCH) = deps(select(lookup(pkg, arch), pkg))
-function deps(pkg::Union(Package,Packages))
+deps(pkg::AbstractString, arch::AbstractString=OS_ARCH) = deps(select(lookup(pkg, arch), pkg))
+@compat function deps(pkg::Union{Package,Packages})
     add = rpm_provides(rpm_requires(pkg))
     packages::Vector{ParsedData}
-    reqd = String[]
+    reqd = AbstractString[]
     if isa(pkg,Packages)
         packages = ParsedData[p for p in pkg.p]
     else
@@ -356,7 +356,7 @@ function deps(pkg::Union(Package,Packages))
     return Packages(packages)
 end
 
-install(pkg::String, arch::String=OS_ARCH; yes = false) = install(select(lookup(pkg, arch),pkg); yes = yes)
+install(pkg::AbstractString, arch::AbstractString=OS_ARCH; yes = false) = install(select(lookup(pkg, arch),pkg); yes = yes)
 
 function install(pkgs::Vector{ASCIIString}, arch = OS_ARCH; yes = false)
     todo = Package[]
@@ -366,7 +366,7 @@ function install(pkgs::Vector{ASCIIString}, arch = OS_ARCH; yes = false)
     install(Packages(todo); yes = yes)
 end
 
-function install(pkg::Union(Package,Packages); yes = false)
+@compat function install(pkg::Union{Package,Packages}; yes = false)
     todo, toup = prepare_install(pkg)
     if isempty(todo) && isempty(toup)
         info("Nothing to do")
@@ -393,11 +393,11 @@ function install(pkg::Union(Package,Packages); yes = false)
     end
 end
 
-function prepare_install(pkg::Union(Package,Packages))
+@compat function prepare_install(pkg::Union{Package,Packages})
     packages = deps(pkg).p
     open(installedlist, isfile(installedlist)?"r+":"w+") do installed
         seek(installed,0)
-        installed_list = Vector{String}[]
+        installed_list = Vector{AbstractString}[]
         for line in eachline(installed)
             ln = @compat split(chomp(line), ' ', limit=2)
             if length(ln) == 2

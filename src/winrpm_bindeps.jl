@@ -14,7 +14,7 @@ function package_available(p::RPM)
     global update_once::Bool
     !can_use(RPM) && return false    
     pkgs = p.package
-    if isa(pkgs,String)
+    if isa(pkgs,AbstractString)
         pkgs = [pkgs]
     end
     if (update_once::Bool) 
