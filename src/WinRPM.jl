@@ -45,15 +45,9 @@ end
 @windows_only function download(source::AbstractString; retry = 5)
     dest = Array(UInt16,261)
     for i in 1:retry
-        if VERSION >= v"0.3-"
-            res = ccall((:URLDownloadToCacheFileW,:urlmon),stdcall,Cuint,
-              (Ptr{Void},Ptr{UInt16},Ptr{UInt16},Clong,Cint,Ptr{Void}),
-              C_NULL,utf16(source),dest,sizeof(dest)>>1,0,C_NULL)
-        else
-            res = ccall((:URLDownloadToCacheFileA,:urlmon),stdcall,Cuint,
-              (Ptr{Void},Ptr{UInt8},Ptr{UInt8},Clong,Cint,Ptr{Void}),
-              C_NULL,bytestring(source),convert(Ptr{UInt8},pointer(dest)),sizeof(dest),0,C_NULL)
-        end
+        res = ccall((:URLDownloadToCacheFileW,:urlmon),stdcall,Cuint,
+          (Ptr{Void},Ptr{UInt16},Ptr{UInt16},Clong,Cint,Ptr{Void}),
+          C_NULL,utf16(source),dest,sizeof(dest)>>1,0,C_NULL)
         if res == 0
             resize!(dest, findfirst(dest, 0))
             filename = utf8(UTF16String(dest))
@@ -458,7 +452,7 @@ function do_install(package::Package)
     cpio = splitext(path2)[1]*".cpio"
     local err = nothing
     for cmd = [`7z x -y $path2 -o$cache`, `7z x -y $cpio -o$installdir`]
-        (out, pc) = (VERSION > v"0.3-") ? open(cmd,"r") : readsfrom(cmd)
+        (out, pc) = open(cmd,"r")
         stdoutstr = readall(out)
         if !success(pc)
             wait_close(out)
