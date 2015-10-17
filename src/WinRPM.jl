@@ -56,11 +56,7 @@ end
         end
         if res == 0
             resize!(dest, findfirst(dest, 0))
-            if VERSION >= v"0.3-"
-                filename = utf8(UTF16String(dest))
-            else
-                filename = bytestring(convert(Ptr{UInt8},pointer(dest)))
-            end
+            filename = utf8(UTF16String(dest))
             if isfile(filename)
                 return readall(filename),200
             end
