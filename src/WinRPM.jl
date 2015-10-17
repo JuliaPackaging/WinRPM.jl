@@ -510,7 +510,5 @@ end
 
 include("winrpm_bindeps.jl")
 
-VERSION < v"0.3-" && __init__()
-
 end
 
