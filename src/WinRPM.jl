@@ -1,6 +1,5 @@
 module WinRPM
 
-@unix_only using HTTPClient.HTTPC
 using Compat
 using Zlib
 using LibExpat
@@ -41,7 +40,7 @@ function __init__()
     update(false, false)
 end
 
-@unix_only download(source::AbstractString) = (x=HTTPC.get(source); (bytestring(x.body),x.http_code))
+@unix_only download(source::AbstractString) = (filename = Base.download(source); (readall(filename),200))
 @windows_only function download(source::AbstractString; retry = 5)
     dest = Array(UInt16,261)
     for i in 1:retry
