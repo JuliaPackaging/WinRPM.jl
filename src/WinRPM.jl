@@ -201,7 +201,7 @@ getindex(pkg::Package,x) = getindex(pkg.pd,x)
 @compat immutable Packages{T<:Union{Set{ParsedData},Vector{ParsedData},}}
     p::T
 end
-Packages{T<:Union{Set{ParsedData},Vector{ParsedData}}}(pkgs::T) = Packages{T}(pkgs)
+@compat Packages{T<:Union{Set{ParsedData},Vector{ParsedData}}}(pkgs::T) = Packages{T}(pkgs)
 Packages(pkgs::Vector{Package}) = Packages([p.pd for p in pkgs])
 Packages(xpath::LibExpat.XPath) = Packages(packages[xpath])
 
