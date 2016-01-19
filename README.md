@@ -104,6 +104,7 @@ RPM-md provides the following functions for general usage:
 `install(pkg)` -- install a package (by name or package identifier), including dependencies, into the `deps` folder
 
 The functions typically take a second parameter "arch" specifying the package architecture for search, defaulting to the current operating system.
+It also offers the keyword argument `yes` which should be set to `true` if no prompt is desired.
 
 Usage Example
 =============
