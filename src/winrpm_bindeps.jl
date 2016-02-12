@@ -1,7 +1,8 @@
 # BinDeps integration
 
 using BinDeps
-import BinDeps: PackageManager, can_use, package_available, available_version, libdir, generate_steps, LibraryDependency, provider, pkg_name
+import BinDeps: PackageManager, can_use, package_available, available_version,
+    libdir, generate_steps, LibraryDependency, provider, provides, pkg_name
 
 update_once = true
 
@@ -29,6 +30,8 @@ libdir(p::RPM,dep) = joinpath(dirname(dirname(@__FILE__)),"deps","usr","$(Sys.AR
 pkg_name(p::RPM) = p.package
 
 provider(::Type{RPM},packages::Vector{ASCIIString}; opts...) = RPM(packages)
+provides(::Type{RPM},packages::AbstractArray, dep::LibraryDependency; opts...) =
+    provides(provider(RPM, packages; opts...), dep; opts...)
 
 function generate_steps(dep::LibraryDependency,h::RPM,opts) 
     if get(opts,:force_rebuild,false) 
