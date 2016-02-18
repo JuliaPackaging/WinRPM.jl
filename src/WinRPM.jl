@@ -296,7 +296,7 @@ function getepoch(pkg::Package)
     if isempty(epoch)
         0
     else
-        int(epoch[1])
+        parse(Int, epoch[1])
     end
 end
 function select(pkgs::Packages, pkg::AbstractString)
