@@ -231,6 +231,31 @@ end
 names(pkg::Package) = LibExpat.string_value(pkg["name"][1])
 names(pkgs::Packages) = [names(pkg) for pkg in pkgs]
 
+function select(pkgs::Packages, pkg::AbstractString)
+    if length(pkgs) == 0
+        error("Package candidate for $pkg not found")
+    elseif length(pkgs) == 1
+        pkg = pkgs[1]
+    else
+        info("Multiple package candidates found for $pkg, picking newest.")
+        epochs = [getepoch(pkg) for pkg in pkgs]
+        pkgs = pkgs[findin(epochs,maximum(epochs))]
+        if length(pkgs) > 1
+            versions = [convert(RPMVersionNumber, pkg[xpath"version/@ver"][1]) for pkg in pkgs]
+            pkgs = pkgs[versions .== maximum(versions)]
+            if length(pkgs) > 1
+                release = [convert(VersionNumber, pkg[xpath"version/@rel"][1]) for pkg in pkgs]
+                pkgs = pkgs[release .== maximum(release)]
+                if length(pkgs) > 1
+                    warn("Multiple package candidates have the same version, picking one at random")
+                end
+            end
+        end
+        pkg = pkgs[1]
+    end
+    pkg
+end
+
 function lookup(name::AbstractString, arch::AbstractString=OS_ARCH)
     Packages(xpath".[name='$name']['$arch'='' or arch='$arch']")
 end
@@ -298,30 +323,6 @@ function getepoch(pkg::Package)
     else
         parse(Int, epoch[1])
     end
-end
-function select(pkgs::Packages, pkg::AbstractString)
-    if length(pkgs) == 0
-        error("Package candidate for $pkg not found")
-    elseif length(pkgs) == 1
-        pkg = pkgs[1]
-    else
-        info("Multiple package candidates found for $pkg, picking newest.")
-        epochs = [getepoch(pkg) for pkg in pkgs]
-        pkgs = pkgs[findin(epochs,maximum(epochs))]
-        if length(pkgs) > 1
-            versions = [convert(RPMVersionNumber, pkg[xpath"version/@ver"][1]) for pkg in pkgs]
-            pkgs = pkgs[versions .== maximum(versions)]
-            if length(pkgs) > 1
-                release = [convert(VersionNumber, pkg[xpath"version/@rel"][1]) for pkg in pkgs]
-                pkgs = pkgs[release .== maximum(release)]
-                if length(pkgs) > 1
-                    warn("Multiple package candidates have the same version, picking one at random")
-                end
-            end
-        end
-        pkg = pkgs[1]
-    end
-    pkg
 end
 
 deps(pkg::AbstractString, arch::AbstractString=OS_ARCH) = deps(select(lookup(pkg, arch), pkg))
