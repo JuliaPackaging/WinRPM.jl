@@ -6,19 +6,19 @@ import BinDeps: PackageManager, can_use, package_available, available_version,
 
 update_once = true
 
-type RPM <: PackageManager 
+type RPM <: PackageManager
     package
 end
 
 can_use(::Type{RPM}) = OS_NAME == :Windows
-function package_available(p::RPM) 
+function package_available(p::RPM)
     global update_once::Bool
-    !can_use(RPM) && return false    
+    !can_use(RPM) && return false
     pkgs = p.package
     if isa(pkgs,AbstractString)
         pkgs = [pkgs]
     end
-    if (update_once::Bool) 
+    if (update_once::Bool)
         info("Updating WinRPM package list")
         update(); update_once = false;
     end
@@ -33,8 +33,8 @@ provider(::Type{RPM},packages::Vector{Compat.ASCIIString}; opts...) = RPM(packag
 provides(::Type{RPM},packages::AbstractArray, dep::LibraryDependency; opts...) =
     provides(provider(RPM, packages; opts...), dep; opts...)
 
-function generate_steps(dep::LibraryDependency,h::RPM,opts) 
-    if get(opts,:force_rebuild,false) 
+function generate_steps(dep::LibraryDependency,h::RPM,opts)
+    if get(opts,:force_rebuild,false)
         error("Will not force WinRPM to rebuild dependency \"$(dep.name)\".\n"*
               "Please make any necessary adjustments manually (This might just be a version upgrade)")
     end

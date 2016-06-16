@@ -1,18 +1,24 @@
 module WinRPM
 
-@unix_only using HTTPClient.HTTPC
 using Compat
+import Compat.String
+
+if is_unix()
+  using HTTPClient.HTTPC
+end
+
 using Zlib
 using LibExpat
 using URIParser
 using LegacyStrings
 
+
 import Base: show, getindex, wait_close, pipeline_error
 
 #export update, whatprovides, search, lookup, install, deps, help
 
-if OS_NAME == :Windows
-    const OS_ARCH = WORD_SIZE == 64 ? "mingw64" : "mingw32"
+if is_windows()
+    const OS_ARCH = Sys.WORD_SIZE == 64 ? "mingw64" : "mingw32"
 else
     const OS_ARCH = string(Sys.ARCH)
 end
@@ -42,8 +48,13 @@ function __init__()
     update(false, false)
 end
 
-@unix_only download(source::AbstractString) = (x=HTTPC.get(source); (bytestring(x.body),x.http_code))
-@windows_only function download(source::AbstractString; retry = 5)
+if is_unix()
+  function download(source::AbstractString)
+    x = HTTPC.get(source)
+    unsafe_string(x.body), x.http_code
+  end
+elseif is_windows()
+  function download(source::AbstractString; retry = 5)
     dest = Array(UInt16,261)
     for i in 1:retry
         res = ccall((:URLDownloadToCacheFileW,:urlmon),stdcall,Cuint,
@@ -53,7 +64,7 @@ end
             resize!(dest, findfirst(dest, 0))
             filename = LegacyStrings.utf8(UTF16String(dest))
             if isfile(filename)
-                return readall(filename),200
+                return readstring(filename),200
             end
         else
             warn("Unknown download failure, error code: $res")
@@ -61,6 +72,9 @@ end
         warn("Retry $i/$retry downloading: $source")
     end
     return "",0
+  end
+else
+  error("Platform not supported: $(Sys.KERNEL)")
 end
 
 getcachedir(source) = getcachedir(cachedir, source)
@@ -129,7 +143,7 @@ function update(ignorecache::Bool=false, allow_remote::Bool=true)
                 gunzip = true
             end
             if !(ignorecache || (never_cache && allow_remote)) && isfile(path2)
-                return readall(path2)
+                return readstring(path2)
             end
             if !allow_remote
                 warn("skipping $path, not in cache -- call WinRPM.update() to download")
@@ -145,7 +159,7 @@ function update(ignorecache::Bool=false, allow_remote::Bool=true)
             open(path2, "w") do f
                 write(f, body)
             end
-            return bytestring(body)
+            return String(body)
         end
         repomd = cacheget("repodata/repomd.xml", true)
         if repomd === nothing
@@ -455,15 +469,17 @@ function do_install(package::Package)
     local err = nothing
     for cmd = [`7z x -y $path2 -o$cache`, `7z x -y $cpio -o$installdir`]
         (out, pc) = open(cmd,"r")
-        stdoutstr = readall(out)
+        stdoutstr = readstring(out)
         if !success(pc)
             wait_close(out)
             println(stdoutstr)
             err = pc
-            @unix_only cd(installdir) do
-                if success(`rpm2cpio $path2` | `cpio -imud`)
-                    err = nothing
-                end
+            if is_unix()
+                cd(installdir) do
+                  if success(`rpm2cpio $path2` | `cpio -imud`)
+                      err = nothing
+                  end
+              end
             end
             isfile(cpio) && rm(cpio)
             err !== nothing && pipeline_error(err)
@@ -503,4 +519,3 @@ end
 include("winrpm_bindeps.jl")
 
 end
-
