@@ -5,6 +5,7 @@ using Compat
 using Zlib
 using LibExpat
 using URIParser
+using LegacyStrings
 
 import Base: show, getindex, wait_close, pipeline_error
 
