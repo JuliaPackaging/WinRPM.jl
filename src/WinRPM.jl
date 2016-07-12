@@ -5,6 +5,7 @@ using Compat
 using Zlib
 using LibExpat
 using URIParser
+using LegacyStrings
 
 import Base: show, getindex, wait_close, pipeline_error
 
@@ -50,7 +51,7 @@ end
           C_NULL,utf16(source),dest,sizeof(dest)>>1,0,C_NULL)
         if res == 0
             resize!(dest, findfirst(dest, 0))
-            filename = utf8(UTF16String(dest))
+            filename = LegacyStrings.utf8(UTF16String(dest))
             if isfile(filename)
                 return readall(filename),200
             end
@@ -120,7 +121,7 @@ function update(ignorecache::Bool=false, allow_remote::Bool=true)
             continue
         end
         cache = getcachedir(source)
-        function cacheget(path::ASCIIString, never_cache::Bool)
+        function cacheget(path::Compat.ASCIIString, never_cache::Bool)
             gunzip = false
             path2 = joinpath(cache,escape(path))
             if endswith(path2, ".gz")
@@ -349,7 +350,7 @@ end
 
 install(pkg::AbstractString, arch::AbstractString=OS_ARCH; yes = false) = install(select(lookup(pkg, arch),pkg); yes = yes)
 
-function install(pkgs::Vector{ASCIIString}, arch = OS_ARCH; yes = false)
+function install(pkgs::Vector{Compat.ASCIIString}, arch = OS_ARCH; yes = false)
     todo = Package[]
     for pkg in pkgs
         push!(todo,select(lookup(pkg, arch),pkg))
