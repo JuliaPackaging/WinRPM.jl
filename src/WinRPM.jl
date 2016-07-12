@@ -121,7 +121,7 @@ function update(ignorecache::Bool=false, allow_remote::Bool=true)
             continue
         end
         cache = getcachedir(source)
-        function cacheget(path::ASCIIString, never_cache::Bool)
+        function cacheget(path::Compat.ASCIIString, never_cache::Bool)
             gunzip = false
             path2 = joinpath(cache,escape(path))
             if endswith(path2, ".gz")
@@ -350,7 +350,7 @@ end
 
 install(pkg::AbstractString, arch::AbstractString=OS_ARCH; yes = false) = install(select(lookup(pkg, arch),pkg); yes = yes)
 
-function install(pkgs::Vector{ASCIIString}, arch = OS_ARCH; yes = false)
+function install(pkgs::Vector{Compat.ASCIIString}, arch = OS_ARCH; yes = false)
     todo = Package[]
     for pkg in pkgs
         push!(todo,select(lookup(pkg, arch),pkg))
