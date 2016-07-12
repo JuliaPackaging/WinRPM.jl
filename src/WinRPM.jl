@@ -51,7 +51,7 @@ end
           C_NULL,utf16(source),dest,sizeof(dest)>>1,0,C_NULL)
         if res == 0
             resize!(dest, findfirst(dest, 0))
-            filename = utf8(UTF16String(dest))
+            filename = LegacyStrings.utf8(UTF16String(dest))
             if isfile(filename)
                 return readall(filename),200
             end
