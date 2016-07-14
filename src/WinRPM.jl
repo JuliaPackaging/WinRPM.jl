@@ -4,7 +4,7 @@ using Compat
 import Compat.String
 
 if is_unix()
-  using HTTPClient.HTTPC
+    using HTTPClient.HTTPC
 end
 
 using Zlib
@@ -49,32 +49,32 @@ function __init__()
 end
 
 if is_unix()
-  function download(source::AbstractString)
-    x = HTTPC.get(source)
-    unsafe_string(x.body), x.http_code
-  end
-elseif is_windows()
-  function download(source::AbstractString; retry = 5)
-    dest = Array(UInt16,261)
-    for i in 1:retry
-        res = ccall((:URLDownloadToCacheFileW,:urlmon),stdcall,Cuint,
-          (Ptr{Void},Ptr{UInt16},Ptr{UInt16},Clong,Cint,Ptr{Void}),
-          C_NULL,utf16(source),dest,sizeof(dest)>>1,0,C_NULL)
-        if res == 0
-            resize!(dest, findfirst(dest, 0))
-            filename = LegacyStrings.utf8(UTF16String(dest))
-            if isfile(filename)
-                return readstring(filename),200
-            end
-        else
-            warn("Unknown download failure, error code: $res")
-        end
-        warn("Retry $i/$retry downloading: $source")
+    function download(source::AbstractString)
+        x = HTTPC.get(source)
+        unsafe_string(x.body), x.http_code
     end
-    return "",0
-  end
+elseif is_windows()
+    function download(source::AbstractString; retry = 5)
+        dest = Array(UInt16,261)
+        for i in 1:retry
+            res = ccall((:URLDownloadToCacheFileW,:urlmon),stdcall,Cuint,
+              (Ptr{Void},Ptr{UInt16},Ptr{UInt16},Clong,Cint,Ptr{Void}),
+              C_NULL,utf16(source),dest,sizeof(dest)>>1,0,C_NULL)
+            if res == 0
+                resize!(dest, findfirst(dest, 0))
+                filename = LegacyStrings.utf8(UTF16String(dest))
+                if isfile(filename)
+                    return readstring(filename),200
+                end
+            else
+                warn("Unknown download failure, error code: $res")
+            end
+            warn("Retry $i/$retry downloading: $source")
+        end
+        return "", 0
+    end
 else
-  error("Platform not supported: $(Sys.KERNEL)")
+    error("Platform not supported: $(Sys.KERNEL)")
 end
 
 getcachedir(source) = getcachedir(cachedir, source)
@@ -476,9 +476,9 @@ function do_install(package::Package)
             err = pc
             if is_unix()
                 cd(installdir) do
-                  if success(`rpm2cpio $path2` | `cpio -imud`)
-                      err = nothing
-                  end
+                    if success(`rpm2cpio $path2` | `cpio -imud`)
+                        err = nothing
+                    end
               end
             end
             isfile(cpio) && rm(cpio)
