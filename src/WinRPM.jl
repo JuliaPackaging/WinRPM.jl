@@ -44,19 +44,13 @@ end
 
 @unix_only download(source::AbstractString) = (x=HTTPC.get(source); (bytestring(x.body),x.http_code))
 @windows_only function download(source::AbstractString; retry = 5)
-    dest = Array(UInt16,261)
+    filename = joinpath(dirname(@__FILE__),"..","cache",basename(source))
     for i in 1:retry
-        res = ccall((:URLDownloadToCacheFileW,:urlmon),stdcall,Cuint,
-          (Ptr{Void},Ptr{UInt16},Ptr{UInt16},Clong,Cint,Ptr{Void}),
-          C_NULL,utf16(source),dest,sizeof(dest)>>1,0,C_NULL)
-        if res == 0
-            resize!(dest, findfirst(dest, 0))
-            filename = LegacyStrings.utf8(UTF16String(dest))
-            if isfile(filename)
-                return readall(filename),200
-            end
-        else
-            warn("Unknown download failure, error code: $res")
+        run(BinDeps.download_cmd(source,filename))
+        if isfile(filename)
+            str = readall(filename)
+            rm(filename)
+            return str, 200
         end
         warn("Retry $i/$retry downloading: $source")
     end
@@ -503,4 +497,3 @@ end
 include("winrpm_bindeps.jl")
 
 end
-
