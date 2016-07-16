@@ -74,7 +74,7 @@ elseif is_windows()
         return "", 0
     end
 else
-    error("Platform not supported: $(Sys.KERNEL)")
+    error("Platform not supported: $(Compat.KERNEL)")
 end
 
 getcachedir(source) = getcachedir(cachedir, source)
