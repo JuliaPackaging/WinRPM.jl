@@ -479,7 +479,7 @@ function do_install(package::Package)
                     if success(`rpm2cpio $path2` | `cpio -imud`)
                         err = nothing
                     end
-              end
+                end
             end
             isfile(cpio) && rm(cpio)
             err !== nothing && pipeline_error(err)
