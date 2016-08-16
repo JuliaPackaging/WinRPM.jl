@@ -10,7 +10,7 @@ type RPM <: PackageManager
     package
 end
 
-can_use(::Type{RPM}) = OS_NAME == :Windows
+can_use(::Type{RPM}) = is_windows()
 function package_available(p::RPM)
     global update_once::Bool
     !can_use(RPM) && return false
