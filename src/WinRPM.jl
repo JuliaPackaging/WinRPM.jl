@@ -1,7 +1,7 @@
 module WinRPM
 
 using Compat
-import Compat.String
+import Compat: String, KERNEL
 
 if is_unix()
     using HTTPClient.HTTPC
@@ -74,7 +74,7 @@ elseif is_windows()
         return "", 0
     end
 else
-    error("Platform not supported: $(Sys.KERNEL)")
+    error("Platform not supported: $(KERNEL)")
 end
 
 getcachedir(source) = getcachedir(cachedir, source)
