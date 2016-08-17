@@ -324,12 +324,12 @@ type RPMVersionNumber
     s::AbstractString
 end
 Base.convert(::Type{RPMVersionNumber}, s::AbstractString) = RPMVersionNumber(s)
-Base.(:(<))(a::RPMVersionNumber,b::RPMVersionNumber) = false
-Base.(:(==))(a::RPMVersionNumber,b::RPMVersionNumber) = true
-Base.(:(<=))(a::RPMVersionNumber,b::RPMVersionNumber) = (a==b)||(a<b)
-Base.(:(>))(a::RPMVersionNumber,b::RPMVersionNumber) = !(a<=b)
-Base.(:(>=))(a::RPMVersionNumber,b::RPMVersionNumber) = !(a<b)
-Base.(:(!=))(a::RPMVersionNumber,b::RPMVersionNumber) = !(a==b)
+@compat Base.:(<)(a::RPMVersionNumber,b::RPMVersionNumber) = false
+@compat Base.:(==)(a::RPMVersionNumber,b::RPMVersionNumber) = true
+@compat Base.:(<=)(a::RPMVersionNumber,b::RPMVersionNumber) = (a==b)||(a<b)
+@compat Base.:(>)(a::RPMVersionNumber,b::RPMVersionNumber) = !(a<=b)
+@compat Base.:(>=)(a::RPMVersionNumber,b::RPMVersionNumber) = !(a<b)
+@compat Base.:(!=)(a::RPMVersionNumber,b::RPMVersionNumber) = !(a==b)
 
 function getepoch(pkg::Package)
     epoch = pkg[xpath"version/@epoch"]
