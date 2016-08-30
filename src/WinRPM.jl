@@ -155,7 +155,7 @@ function update(ignorecache::Bool=false, allow_remote::Bool=true)
                 warn("received error $(data[2]) while downloading $source/$path")
                 return nothing
             end
-            body = gunzip ? decompress(convert(Vector{UInt8},data[1])) : data[1]
+            body = gunzip ? Libz.decompress(convert(Vector{UInt8},data[1])) : data[1]
             open(path2, "w") do f
                 write(f, body)
             end
