@@ -4,7 +4,7 @@ using BinDeps
 import BinDeps: PackageManager, can_use, package_available, available_version,
     libdir, generate_steps, LibraryDependency, provider, provides, pkg_name
 
-update_once = true
+update_once = true::Bool
 
 type RPM <: PackageManager
     package
@@ -12,7 +12,7 @@ end
 
 can_use(::Type{RPM}) = is_windows()
 function package_available(p::RPM)
-    global update_once::Bool
+    global update_once
     !can_use(RPM) && return false
     pkgs = p.package
     if isa(pkgs,AbstractString)

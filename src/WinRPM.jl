@@ -343,7 +343,7 @@ end
 deps(pkg::AbstractString, arch::AbstractString=OS_ARCH) = deps(select(lookup(pkg, arch), pkg))
 @compat function deps(pkg::Union{Package,Packages})
     add = rpm_provides(rpm_requires(pkg))
-    packages::Vector{ParsedData}
+    local packages::Vector{ParsedData}
     reqd = AbstractString[]
     if isa(pkg,Packages)
         packages = ParsedData[p for p in pkg.p]
