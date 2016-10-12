@@ -12,7 +12,7 @@ end
 
 can_use(::Type{RPM}) = is_windows()
 function package_available(p::RPM)
-    global update_once::Bool
+    global update_once
     !can_use(RPM) && return false
     pkgs = p.package
     if isa(pkgs,AbstractString)
