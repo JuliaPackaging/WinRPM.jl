@@ -4,7 +4,7 @@ using BinDeps
 import BinDeps: PackageManager, can_use, package_available, available_version,
     libdir, generate_steps, LibraryDependency, provider, provides, pkg_name
 
-update_once = true::Bool
+update_once = true
 
 type RPM <: PackageManager
     package
