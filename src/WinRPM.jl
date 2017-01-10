@@ -1,7 +1,7 @@
 module WinRPM
 
 using Compat
-import Compat: String, KERNEL
+using Compat: String, KERNEL
 
 if is_unix()
     using HTTPClient.HTTPC
