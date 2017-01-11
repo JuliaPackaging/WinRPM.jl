@@ -29,7 +29,7 @@ function mkdirs(dir)
     end
 end
 
-global const packages = ParsedData[]
+global const packages = ETree[]
 
 function __init__()
     empty!(packages)
@@ -196,17 +196,17 @@ function update(ignorecache::Bool=false, allow_remote::Bool=true)
 end
 
 immutable Package
-    pd::ParsedData
+    pd::ETree
 end
 Package(p::Package) = p
-Package(p::Vector{ParsedData}) = [Package(pkg) for pkg in p]
+Package(p::Vector{ETree}) = [Package(pkg) for pkg in p]
 
 getindex(pkg::Package,x) = getindex(pkg.pd,x)
 
-@compat immutable Packages{T<:Union{Set{ParsedData},Vector{ParsedData},}}
+@compat immutable Packages{T<:Union{Set{ETree},Vector{ETree},}}
     p::T
 end
-@compat Packages{T<:Union{Set{ParsedData},Vector{ParsedData}}}(pkgs::T) = Packages{T}(pkgs)
+@compat Packages{T<:Union{Set{ETree},Vector{ETree}}}(pkgs::T) = Packages{T}(pkgs)
 Packages(pkgs::Vector{Package}) = Packages([p.pd for p in pkgs])
 Packages(xpath::LibExpat.XPath) = Packages(packages[xpath])
 
@@ -285,7 +285,7 @@ rpm_provides(requires::AbstractString) =
     Packages(xpath".[format/rpm:provides/rpm:entry[@name='$requires']]")
 
 @compat function rpm_provides{T<:AbstractString}(requires::Union{Vector{T},Set{T}})
-    pkgs = Set{ParsedData}()
+    pkgs = Set{ETree}()
     for x in requires
         pkgs_ = rpm_provides(x)
         if isempty(pkgs_)
@@ -314,7 +314,7 @@ function rpm_url(pkg::Package)
     url = baseurl, href
 end
 
-@compat function rpm_ver(pkg::Union{Package,ParsedData})
+@compat function rpm_ver(pkg::Union{Package,ETree})
     return (pkg[xpath"version/@ver"][1],
             pkg[xpath"version/@rel"][1],
             pkg[xpath"version/@epoch"][1])
@@ -343,12 +343,12 @@ end
 deps(pkg::AbstractString, arch::AbstractString=OS_ARCH) = deps(select(lookup(pkg, arch), pkg))
 @compat function deps(pkg::Union{Package,Packages})
     add = rpm_provides(rpm_requires(pkg))
-    local packages::Vector{ParsedData}
+    local packages::Vector{ETree}
     reqd = AbstractString[]
     if isa(pkg,Packages)
-        packages = ParsedData[p for p in pkg.p]
+        packages = ETree[p for p in pkg.p]
     else
-        packages = ParsedData[pkg.pd,]
+        packages = ETree[pkg.pd,]
     end
     packages = union(packages, add.p)
     while !isempty(add)
@@ -410,7 +410,7 @@ end
                 push!(installed_list, ln)
             end
         end
-        toupdate = ParsedData[]
+        toupdate = ETree[]
         filter!(packages) do p
             ver = replace(join(rpm_ver(p),','),r"\s","")
             oldver = false
