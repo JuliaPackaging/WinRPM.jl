@@ -84,7 +84,7 @@ function getcachedir(cachedir, source)
         lines = readlines(cacheindex)
         for (idx,line) in enumerate(lines)
             if !startswith(line,'#') && ' ' in line
-                stri, src = @compat split(chomp(line), ' ', limit=2)
+                stri, src = split(chomp(line), ' ', limit=2)
                 cache = joinpath(cachedir, stri)
                 if !isdir(cache)
                     # remove this directory from the list,
@@ -177,7 +177,7 @@ function update(ignorecache::Bool=false, allow_remote::Bool=true)
                 for pkg in pkgs[xpath".[arch='noarch' or arch='src'][starts-with(name,'mingw32-') or starts-with(name, 'mingw64-')]"]
                     name = pkg[xpath"name"][1]
                     arch = pkg[xpath"arch"][1]
-                    new_arch, new_name = @compat split(LibExpat.string_value(name), '-', limit=2)
+                    new_arch, new_name = split(LibExpat.string_value(name), '-', limit=2)
                     old_arch = LibExpat.string_value(arch)
                     if old_arch != "noarch"
                         new_arch = "$new_arch-$old_arch"
@@ -203,10 +203,9 @@ Package(p::Vector{ETree}) = [Package(pkg) for pkg in p]
 
 getindex(pkg::Package,x) = getindex(pkg.pd,x)
 
-@compat immutable Packages{T<:Union{Set{ETree},Vector{ETree},}}
+immutable Packages{T<:Union{Set{ETree},Vector{ETree}}}
     p::T
 end
-@compat Packages{T<:Union{Set{ETree},Vector{ETree}}}(pkgs::T) = Packages{T}(pkgs)
 Packages(pkgs::Vector{Package}) = Packages([p.pd for p in pkgs])
 Packages(xpath::LibExpat.XPath) = Packages(packages[xpath])
 
@@ -284,7 +283,7 @@ whatprovides(file::AbstractString, arch::AbstractString=OS_ARCH) =
 rpm_provides(requires::AbstractString) =
     Packages(xpath".[format/rpm:provides/rpm:entry[@name='$requires']]")
 
-@compat function rpm_provides{T<:AbstractString}(requires::Union{Vector{T},Set{T}})
+function rpm_provides{T<:AbstractString}(requires::Union{Vector{T},Set{T}})
     pkgs = Set{ETree}()
     for x in requires
         pkgs_ = rpm_provides(x)
@@ -299,7 +298,7 @@ end
 
 rpm_requires(x::Package) = x[xpath"format/rpm:requires/rpm:entry/@name"]
 
-@compat function rpm_requires(xs::Union{Vector{Package},Set{Package},Packages})
+function rpm_requires(xs::Union{Vector{Package},Set{Package},Packages})
     requires = Set{AbstractString}()
     for x in xs
         union!(requires, rpm_requires(x))
@@ -314,7 +313,7 @@ function rpm_url(pkg::Package)
     url = baseurl, href
 end
 
-@compat function rpm_ver(pkg::Union{Package,ETree})
+function rpm_ver(pkg::Union{Package,ETree})
     return (pkg[xpath"version/@ver"][1],
             pkg[xpath"version/@rel"][1],
             pkg[xpath"version/@epoch"][1])
@@ -341,7 +340,7 @@ function getepoch(pkg::Package)
 end
 
 deps(pkg::AbstractString, arch::AbstractString=OS_ARCH) = deps(select(lookup(pkg, arch), pkg))
-@compat function deps(pkg::Union{Package,Packages})
+function deps(pkg::Union{Package,Packages})
     add = rpm_provides(rpm_requires(pkg))
     local packages::Vector{ETree}
     reqd = AbstractString[]
@@ -372,7 +371,7 @@ function install(pkgs::Vector{Compat.ASCIIString}, arch = OS_ARCH; yes = false)
     install(Packages(todo); yes = yes)
 end
 
-@compat function install(pkg::Union{Package,Packages}; yes = false)
+function install(pkg::Union{Package,Packages}; yes = false)
     todo, toup = prepare_install(pkg)
     if isempty(todo) && isempty(toup)
         info("Nothing to do")
@@ -399,13 +398,13 @@ end
     end
 end
 
-@compat function prepare_install(pkg::Union{Package,Packages})
+function prepare_install(pkg::Union{Package,Packages})
     packages = deps(pkg).p
     open(installedlist, isfile(installedlist)?"r+":"w+") do installed
         seek(installed,0)
         installed_list = Vector{AbstractString}[]
         for line in eachline(installed)
-            ln = @compat split(chomp(line), ' ', limit=2)
+            ln = split(chomp(line), ' ', limit=2)
             if length(ln) == 2
                 push!(installed_list, ln)
             end
