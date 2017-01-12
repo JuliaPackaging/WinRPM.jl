@@ -7,11 +7,7 @@ if is_unix()
     using HTTPClient.HTTPC
 end
 
-using Libz
-using LibExpat
-using URIParser
-using LegacyStrings
-
+using Libz, LibExpat, URIParser
 
 import Base: show, getindex, wait_close, pipeline_error
 
@@ -59,10 +55,10 @@ elseif is_windows()
         for i in 1:retry
             res = ccall((:URLDownloadToCacheFileW,:urlmon),stdcall,Cuint,
               (Ptr{Void},Ptr{UInt16},Ptr{UInt16},Clong,Cint,Ptr{Void}),
-              C_NULL,utf16(source),dest,sizeof(dest)>>1,0,C_NULL)
+              C_NULL,transcode(UInt16,source),dest,sizeof(dest)>>1,0,C_NULL)
             if res == 0
-                resize!(dest, findfirst(dest, 0))
-                filename = LegacyStrings.utf8(UTF16String(dest))
+                resize!(dest, findfirst(dest, 0)-1)
+                filename = transcode(String, dest)
                 if isfile(filename)
                     return readstring(filename),200
                 end
@@ -135,7 +131,7 @@ function update(ignorecache::Bool=false, allow_remote::Bool=true)
             continue
         end
         cache = getcachedir(source)
-        function cacheget(path::Compat.ASCIIString, never_cache::Bool)
+        function cacheget(path::AbstractString, never_cache::Bool)
             gunzip = false
             path2 = joinpath(cache,escape(path))
             if endswith(path2, ".gz")
@@ -364,7 +360,7 @@ end
 
 install(pkg::AbstractString, arch::AbstractString=OS_ARCH; yes = false) = install(select(lookup(pkg, arch),pkg); yes = yes)
 
-function install(pkgs::Vector{Compat.ASCIIString}, arch = OS_ARCH; yes = false)
+function install(pkgs::Vector{AbstractString}, arch = OS_ARCH; yes = false)
     todo = Package[]
     for pkg in pkgs
         push!(todo,select(lookup(pkg, arch),pkg))
