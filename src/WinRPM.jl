@@ -51,7 +51,7 @@ if is_unix()
     end
 elseif is_windows()
     function download(source::AbstractString; retry=5)
-        dest = Array(UInt16,261)
+        dest = Vector{UInt16}(261)
         for i in 1:retry
             res = ccall((:URLDownloadToCacheFileW, :urlmon), stdcall, Cuint,
               (Ptr{Void}, Ptr{UInt16}, Ptr{UInt16}, Clong, Cint, Ptr{Void}),
