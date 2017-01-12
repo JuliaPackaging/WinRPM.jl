@@ -50,17 +50,17 @@ if is_unix()
         unsafe_string(x.body), x.http_code
     end
 elseif is_windows()
-    function download(source::AbstractString; retry = 5)
+    function download(source::AbstractString; retry=5)
         dest = Array(UInt16,261)
         for i in 1:retry
-            res = ccall((:URLDownloadToCacheFileW,:urlmon),stdcall,Cuint,
-              (Ptr{Void},Ptr{UInt16},Ptr{UInt16},Clong,Cint,Ptr{Void}),
-              C_NULL,transcode(UInt16,source),dest,sizeof(dest)>>1,0,C_NULL)
+            res = ccall((:URLDownloadToCacheFileW, :urlmon), stdcall, Cuint,
+              (Ptr{Void}, Ptr{UInt16}, Ptr{UInt16}, Clong, Cint, Ptr{Void}),
+              C_NULL, transcode(UInt16, source), dest, sizeof(dest) >> 1, 0, C_NULL)
             if res == 0
-                resize!(dest, findfirst(dest, 0)-1)
+                resize!(dest, findfirst(dest, 0) - 1)
                 filename = transcode(String, dest)
                 if isfile(filename)
-                    return readstring(filename),200
+                    return readstring(filename), 200
                 end
             else
                 warn("Unknown download failure, error code: $res")
@@ -90,9 +90,9 @@ function getcachedir(cachedir, source)
                     truncate(cacheindex, 0)
                     for (idx2,l) in enumerate(lines)
                         if idx == idx2
-                            write(cacheindex,'#')
+                            write(cacheindex, '#')
                         end
-                        write(cacheindex,l)
+                        write(cacheindex, l)
                     end
                     empty!(lines)
                     return getcachedir(source)
@@ -197,7 +197,7 @@ end
 Package(p::Package) = p
 Package(p::Vector{ParsedData}) = [Package(pkg) for pkg in p]
 
-getindex(pkg::Package,x) = getindex(pkg.pd,x)
+getindex(pkg::Package,x) = getindex(pkg.pd, x)
 
 @compat immutable Packages{T<:Union{Set{ParsedData},Vector{ParsedData},}}
     p::T
@@ -222,7 +222,7 @@ function show(io::IO, pkg::Package)
     println(io,"  Arch: ", LibExpat.string_value(pkg["arch"][1]))
     println(io,"  URL: ", LibExpat.string_value(pkg["url"][1]))
     println(io,"  License: ", LibExpat.string_value(pkg["format/rpm:license"][1]))
-    println(io,"  Description: ", replace(LibExpat.string_value(pkg["description"][1]),r"\r\n|\r|\n","\n    "))
+    println(io,"  Description: ", replace(LibExpat.string_value(pkg["description"][1]), r"\r\n|\r|\n", "\n    "))
 end
 
 function show(io::IO, pkgs::Packages)
@@ -267,9 +267,8 @@ function select(pkgs::Packages, pkg::AbstractString)
     pkg
 end
 
-function lookup(name::AbstractString, arch::AbstractString=OS_ARCH)
+lookup(name::AbstractString, arch::AbstractString=OS_ARCH) =
     Packages(xpath".[name='$name']['$arch'='' or arch='$arch']")
-end
 
 search(x::AbstractString, arch::AbstractString=OS_ARCH) =
     Packages(xpath".[contains(name,'$x') or contains(summary,'$x') or contains(description,'$x')]['$arch'='' or arch='$arch']")
@@ -320,12 +319,12 @@ type RPMVersionNumber
     s::AbstractString
 end
 Base.convert(::Type{RPMVersionNumber}, s::AbstractString) = RPMVersionNumber(s)
-@compat Base.:(<)(a::RPMVersionNumber,b::RPMVersionNumber) = false
-@compat Base.:(==)(a::RPMVersionNumber,b::RPMVersionNumber) = true
-@compat Base.:(<=)(a::RPMVersionNumber,b::RPMVersionNumber) = (a==b)||(a<b)
-@compat Base.:(>)(a::RPMVersionNumber,b::RPMVersionNumber) = !(a<=b)
-@compat Base.:(>=)(a::RPMVersionNumber,b::RPMVersionNumber) = !(a<b)
-@compat Base.:(!=)(a::RPMVersionNumber,b::RPMVersionNumber) = !(a==b)
+@compat Base.:(<)(a::RPMVersionNumber, b::RPMVersionNumber) = false
+@compat Base.:(==)(a::RPMVersionNumber, b::RPMVersionNumber) = true
+@compat Base.:(<=)(a::RPMVersionNumber, b::RPMVersionNumber) = (a == b) || (a < b)
+@compat Base.:(>)(a::RPMVersionNumber, b::RPMVersionNumber) = !(a <= b)
+@compat Base.:(>=)(a::RPMVersionNumber, b::RPMVersionNumber) = !(a < b)
+@compat Base.:(!=)(a::RPMVersionNumber, b::RPMVersionNumber) = !(a == b)
 
 function getepoch(pkg::Package)
     epoch = pkg[xpath"version/@epoch"]
@@ -341,16 +340,16 @@ deps(pkg::AbstractString, arch::AbstractString=OS_ARCH) = deps(select(lookup(pkg
     add = rpm_provides(rpm_requires(pkg))
     local packages::Vector{ParsedData}
     reqd = AbstractString[]
-    if isa(pkg,Packages)
+    if isa(pkg, Packages)
         packages = ParsedData[p for p in pkg.p]
     else
-        packages = ParsedData[pkg.pd,]
+        packages = ParsedData[pkg.pd]
     end
     packages = union(packages, add.p)
     while !isempty(add)
         reqs = setdiff(rpm_requires(add), reqd)
-        append!(reqd,reqs)
-        add = Packages(setdiff(rpm_provides(reqs).p,packages))
+        append!(reqd, reqs)
+        add = Packages(setdiff(rpm_provides(reqs).p, packages))
         for p in add
             push!(packages, p.pd)
         end
@@ -358,17 +357,17 @@ deps(pkg::AbstractString, arch::AbstractString=OS_ARCH) = deps(select(lookup(pkg
     return Packages(packages)
 end
 
-install(pkg::AbstractString, arch::AbstractString=OS_ARCH; yes = false) = install(select(lookup(pkg, arch),pkg); yes = yes)
+install(pkg::AbstractString, arch::AbstractString=OS_ARCH; yes=false) = install(select(lookup(pkg, arch), pkg); yes=yes)
 
 function install{T<:AbstractString}(pkgs::Vector{T}, arch::AbstractString=OS_ARCH; yes=false)
     todo = Package[]
     for pkg in pkgs
-        push!(todo,select(lookup(pkg, arch),pkg))
+        push!(todo, select(lookup(pkg, arch), pkg))
     end
-    install(Packages(todo); yes = yes)
+    install(Packages(todo); yes=yes)
 end
 
-@compat function install(pkg::Union{Package,Packages}; yes = false)
+@compat function install(pkg::Union{Package,Packages}; yes=false)
     todo, toup = prepare_install(pkg)
     if isempty(todo) && isempty(toup)
         info("Nothing to do")
@@ -398,7 +397,7 @@ end
 @compat function prepare_install(pkg::Union{Package,Packages})
     packages = deps(pkg).p
     open(installedlist, isfile(installedlist)?"r+":"w+") do installed
-        seek(installed,0)
+        seek(installed, 0)
         installed_list = Vector{AbstractString}[]
         for line in eachline(installed)
             ln = @compat split(chomp(line), ' ', limit=2)
@@ -408,7 +407,7 @@ end
         end
         toupdate = ParsedData[]
         filter!(packages) do p
-            ver = replace(join(rpm_ver(p),','),r"\s","")
+            ver = replace(join(rpm_ver(p), ','), r"\s", "")
             oldver = false
             for entry in p[xpath"format/rpm:provides/rpm:entry[@name]"]
                 provides = entry.attr["name"]
@@ -448,7 +447,7 @@ end
 
 function do_install(package::Package)
     name = names(package)
-    source,path = rpm_url(package)
+    source, path = rpm_url(package)
     info("Downloading: ", name)
     data = download("$source/$path")
     if data[2] != 200
@@ -464,7 +463,7 @@ function do_install(package::Package)
     cpio = splitext(path2)[1]*".cpio"
     local err = nothing
     for cmd = [`7z x -y $path2 -o$cache`, `7z x -y $cpio -o$installdir`]
-        (out, pc) = open(cmd,"r")
+        (out, pc) = open(cmd, "r")
         stdoutstr = readstring(out)
         if !success(pc)
             wait_close(out)
@@ -483,7 +482,7 @@ function do_install(package::Package)
         end
     end
     isfile(cpio) && rm(cpio)
-    ver = replace(join(rpm_ver(package),','),r"\s","")
+    ver = replace(join(rpm_ver(package), ','), r"\s", "")
     open(installedlist, isfile(installedlist)?"r+":"w+") do installed
         for entry in package[xpath"format/rpm:provides/rpm:entry[@name]"]
             provides = entry.attr["name"]
@@ -509,7 +508,7 @@ function prompt_ok(question)
 end
 
 function help()
-    less(joinpath(dirname(dirname(@__FILE__)),"README.md"))
+    less(joinpath(dirname(dirname(@__FILE__)), "README.md"))
 end
 
 include("winrpm_bindeps.jl")
