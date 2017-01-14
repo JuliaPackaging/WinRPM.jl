@@ -29,8 +29,8 @@ available_version(p::RPM) = lookup(p.package).p[1][xpath"version/@ver"][1]
 libdir(p::RPM,dep) = joinpath(dirname(dirname(@__FILE__)),"deps","usr","$(Sys.ARCH)-w64-mingw32","sys-root","mingw","bin")
 pkg_name(p::RPM) = p.package
 
-provider(::Type{RPM},packages::Vector{AbstractString}; opts...) = RPM(packages)
-provides(::Type{RPM},packages::AbstractArray, dep::LibraryDependency; opts...) =
+provider{T<:AbstractString}(::Type{RPM}, packages::Vector{T}; opts...) = RPM(packages)
+provides(::Type{RPM}, packages::AbstractArray, dep::LibraryDependency; opts...) =
     provides(provider(RPM, packages; opts...), dep; opts...)
 
 function generate_steps(dep::LibraryDependency,h::RPM,opts)

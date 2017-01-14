@@ -360,7 +360,7 @@ end
 
 install(pkg::AbstractString, arch::AbstractString=OS_ARCH; yes = false) = install(select(lookup(pkg, arch),pkg); yes = yes)
 
-function install(pkgs::Vector{AbstractString}, arch = OS_ARCH; yes = false)
+function install{T<:AbstractString}(pkgs::Vector{T}, arch::AbstractString=OS_ARCH; yes=false)
     todo = Package[]
     for pkg in pkgs
         push!(todo,select(lookup(pkg, arch),pkg))
