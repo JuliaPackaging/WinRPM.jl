@@ -1,13 +1,13 @@
-using WinRPM, SHA
+using WinRPM, SHA, Compat
 WinRPM.update()
 
 # update julia's gcc dlls
-@windows_only begin
+if is_windows()
     winrpm_bin = joinpath(WinRPM.installdir, "usr", Sys.MACHINE,
         "sys-root", "mingw", "bin")
     dlls = ["libgfortran-3", "libquadmath-0", "libstdc++-6", "libssp-0",
         WORD_SIZE==32 ? "libgcc_s_sjlj-1" : "libgcc_s_seh-1"]
-    dlls_to_download = ASCIIString[]
+    dlls_to_download = Compat.String[]
     for lib in dlls
         if !isfile(joinpath(winrpm_bin, lib * ".dll"))
             push!(dlls_to_download, replace(lib, "-", ""))
@@ -22,7 +22,7 @@ WinRPM.update()
     if !isempty(dlls_to_download)
         WinRPM.install(dlls_to_download; yes = true)
     end
-    dlls_to_update = ASCIIString[]
+    dlls_to_update = Compat.String[]
     for lib in dlls
         local sha_current, sha_new
         open(joinpath(JULIA_HOME, lib * ".dll")) do f
