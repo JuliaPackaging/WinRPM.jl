@@ -25,8 +25,12 @@ if is_windows()
     dlls_to_update = Compat.String[]
     for lib in dlls
         local sha_current, sha_new
-        open(joinpath(JULIA_HOME, lib * ".dll")) do f
-            sha_current = sha256(f)
+        if isfile(joinpath(JULIA_HOME, lib * ".dll"))
+            open(joinpath(JULIA_HOME, lib * ".dll")) do f
+                sha_current = sha256(f)
+            end
+        else
+            sha_current = UInt8[]
         end
         open(joinpath(winrpm_bin, lib * ".dll")) do f
             sha_new = sha256(f)
