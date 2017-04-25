@@ -444,6 +444,8 @@ function do_install(packages::Packages)
     end
 end
 
+const exe7z = joinpath(JULIA_HOME, "7z.exe")
+
 function do_install(package::Package)
     name = names(package)
     source, path = rpm_url(package)
@@ -461,7 +463,7 @@ function do_install(package::Package)
     info("Extracting: ", name)
     cpio = splitext(path2)[1]*".cpio"
     local err = nothing
-    for cmd = [`7z x -y $path2 -o$cache`, `7z x -y $cpio -o$installdir`]
+    for cmd = [`$exe7z x -y $path2 -o$cache`, `$exe7z x -y $cpio -o$installdir`]
         (out, pc) = open(cmd, "r")
         stdoutstr = readstring(out)
         if !success(pc)
