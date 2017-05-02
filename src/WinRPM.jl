@@ -1,7 +1,6 @@
 module WinRPM
 
 using Compat
-using Compat: String, KERNEL
 
 if is_unix()
     using HTTPClient.HTTPC
@@ -29,18 +28,18 @@ global const packages = ETree[]
 
 function __init__()
     empty!(packages)
-    global cachedir = joinpath(dirname(dirname(@__FILE__)), "cache")
-    global installdir = joinpath(dirname(dirname(@__FILE__)), "deps")
+    global cachedir = joinpath(dirname(@__DIR__), "cache")
+    global installdir = joinpath(dirname(@__DIR__), "deps")
     global indexpath = joinpath(cachedir, "index")
 
     mkdirs(cachedir)
     mkdirs(installdir)
-    open(joinpath(dirname(@__FILE__), "..", "sources.list")) do f
+    open(joinpath(@__DIR__, "..", "sources.list")) do f
         global sources = filter!(map(chomp, readlines(f))) do l
             return !isempty(l) && l[1] != '#'
         end
     end
-    global installedlist = joinpath(dirname(@__FILE__), "..", "installed.list")
+    global installedlist = joinpath(@__DIR__, "..", "installed.list")
     update(false, false)
 end
 
@@ -70,7 +69,7 @@ elseif is_windows()
         return "", 0
     end
 else
-    error("Platform not supported: $(KERNEL)")
+    error("Platform not supported: $(Sys.KERNEL)")
 end
 
 getcachedir(source) = getcachedir(cachedir, source)
@@ -318,12 +317,12 @@ type RPMVersionNumber
     s::AbstractString
 end
 Base.convert(::Type{RPMVersionNumber}, s::AbstractString) = RPMVersionNumber(s)
-@compat Base.:(<)(a::RPMVersionNumber, b::RPMVersionNumber) = false
-@compat Base.:(==)(a::RPMVersionNumber, b::RPMVersionNumber) = true
-@compat Base.:(<=)(a::RPMVersionNumber, b::RPMVersionNumber) = (a == b) || (a < b)
-@compat Base.:(>)(a::RPMVersionNumber, b::RPMVersionNumber) = !(a <= b)
-@compat Base.:(>=)(a::RPMVersionNumber, b::RPMVersionNumber) = !(a < b)
-@compat Base.:(!=)(a::RPMVersionNumber, b::RPMVersionNumber) = !(a == b)
+Base.:(<)(a::RPMVersionNumber, b::RPMVersionNumber) = false
+Base.:(==)(a::RPMVersionNumber, b::RPMVersionNumber) = true
+Base.:(<=)(a::RPMVersionNumber, b::RPMVersionNumber) = (a == b) || (a < b)
+Base.:(>)(a::RPMVersionNumber, b::RPMVersionNumber) = !(a <= b)
+Base.:(>=)(a::RPMVersionNumber, b::RPMVersionNumber) = !(a < b)
+Base.:(!=)(a::RPMVersionNumber, b::RPMVersionNumber) = !(a == b)
 
 function getepoch(pkg::Package)
     epoch = pkg[xpath"version/@epoch"]
@@ -509,7 +508,7 @@ function prompt_ok(question)
 end
 
 function help()
-    less(joinpath(dirname(dirname(@__FILE__)), "README.md"))
+    less(joinpath(dirname(@__DIR__), "README.md"))
 end
 
 include("winrpm_bindeps.jl")
