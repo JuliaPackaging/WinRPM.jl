@@ -9,7 +9,7 @@ end
 
 using Libz, LibExpat, URIParser
 
-import Base: show, getindex, wait_close, pipeline_error
+import Base: show, getindex, wait_close, pipeline_error, select
 
 #export update, whatprovides, search, lookup, install, deps, help
 
