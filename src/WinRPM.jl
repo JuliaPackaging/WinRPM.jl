@@ -508,10 +508,6 @@ function prompt_ok(question)
     end
 end
 
-function help()
-    less(joinpath(dirname(dirname(@__FILE__)), "README.md"))
-end
-
 include("winrpm_bindeps.jl")
 
 end
