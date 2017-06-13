@@ -25,7 +25,7 @@ function mkdirs(dir)
     end
 end
 
-global const packages = ETree[]
+const packages = ETree[]
 
 function __init__()
     empty!(packages)
