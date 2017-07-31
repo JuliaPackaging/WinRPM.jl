@@ -50,21 +50,25 @@ if is_unix()
         unsafe_string(x.body), x.http_code
     end
 elseif is_windows()
+   function download(url::AbstractString, filename::AbstractString)
+        ps = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+        tls12 = "[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12"
+        client = "New-Object System.Net.Webclient"
+        # in the following we escape ' with '' (see https://ss64.com/ps/syntax-esc.html)
+        downloadfile = "($client).DownloadFile('$(replace(url, "'", "''"))', '$(replace(filename, "'", "''"))')"
+        run(`$ps -NoProfile -Command "$tls12; $downloadfile"`)
+        filename
+    end
+
     function download(source::AbstractString; retry=5)
-        dest = Vector{UInt16}(261)
+        filename = joinpath(@__FILE__, "..", "..", "cache", basename(source))
         for i in 1:retry
-            res = ccall((:URLDownloadToCacheFileW, :urlmon), stdcall, Cuint,
-              (Ptr{Void}, Ptr{UInt16}, Ptr{UInt16}, Clong, Cint, Ptr{Void}),
-              C_NULL, transcode(UInt16, source), dest, sizeof(dest) >> 1, 0, C_NULL)
-            if res == 0
-                resize!(dest, findfirst(dest, 0) - 1)
-                filename = transcode(String, dest)
+            download(source, filename)
                 if isfile(filename)
-                    return readstring(filename), 200
+                    str = readstring(filename)
+                    rm(filename)
+                    return str, 200
                 end
-            else
-                warn("Unknown download failure, error code: $res")
-            end
             warn("Retry $i/$retry downloading: $source")
         end
         return "", 0
