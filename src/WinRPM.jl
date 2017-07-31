@@ -64,11 +64,11 @@ elseif is_windows()
         filename = joinpath(@__FILE__, "..", "..", "cache", basename(source))
         for i in 1:retry
             download(source, filename)
-                if isfile(filename)
-                    str = readstring(filename)
-                    rm(filename)
-                    return str, 200
-                end
+            if isfile(filename)
+                str = readstring(filename)
+                rm(filename)
+                return str, 200
+            end
             warn("Retry $i/$retry downloading: $source")
         end
         return "", 0
