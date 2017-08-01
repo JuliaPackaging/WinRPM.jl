@@ -61,7 +61,7 @@ elseif is_windows()
     end
 
     function download(source::AbstractString; retry=5)
-        filename = joinpath(@__FILE__, "..", "..", "cache", basename(source))
+        filename = joinpath(@__FILE__, "..", "..", "cache", "tmp_" * basename(source))
         for i in 1:retry
             download(source, filename)
             if isfile(filename)
