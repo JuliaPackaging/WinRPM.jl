@@ -50,27 +50,28 @@ if is_unix()
         unsafe_string(x.body), x.http_code
     end
 elseif is_windows()
-   function download(url::AbstractString, filename::AbstractString)
+    function download_string(url::AbstractString)
         ps = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+        encoding = "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8"
         tls12 = "[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12"
         client = "New-Object System.Net.Webclient"
         # in the following we escape ' with '' (see https://ss64.com/ps/syntax-esc.html)
-        downloadfile = "($client).DownloadFile('$(replace(url, "'", "''"))', '$(replace(filename, "'", "''"))')"
-        run(`$ps -NoProfile -Command "$tls12; $downloadfile"`)
-        filename
+        downloadstr = "($client).DownloadString('$(replace(url, "'", "''"))')"
+        readchomp(`$ps -NoProfile -Command "$encoding; $tls12; $downloadstr"`)
     end
 
     function download(source::AbstractString; retry=5)
-        filename = joinpath(@__FILE__, "..", "..", "cache", "tmp_" * basename(source))
+        local ex_msg
         for i in 1:retry
-            download(source, filename)
-            if isfile(filename)
-                str = readstring(filename)
-                rm(filename)
+            try
+                str = download_string(source)
                 return str, 200
+            catch ex
+                ex_msg = ex
             end
             warn("Retry $i/$retry downloading: $source")
         end
+        warn(ex.msg)
         return "", 0
     end
 else
