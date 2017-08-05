@@ -444,7 +444,7 @@ function do_install(packages::Packages)
     end
 end
 
-const exe7z = joinpath(JULIA_HOME, "7z.exe")
+const exe7z = is_windows() ? joinpath(JULIA_HOME, "7z.exe") : "7z"
 
 function do_install(package::Package)
     name = names(package)
