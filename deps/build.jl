@@ -6,7 +6,7 @@ if is_windows()
     winrpm_bin = joinpath(WinRPM.installdir, "usr", Sys.MACHINE,
         "sys-root", "mingw", "bin")
     dlls = ["libgfortran-4", "libquadmath-0", "libstdc++-6", "libwinpthread-1",
-        "libssp-0", WORD_SIZE==32 ? "libgcc_s_sjlj-1" : "libgcc_s_seh-1"]
+        "libssp-0", Compat.Sys.WORD_SIZE==32 ? "libgcc_s_sjlj-1" : "libgcc_s_seh-1"]
     dlls_to_download = Compat.String[]
     for lib in dlls
         if !isfile(joinpath(winrpm_bin, lib * ".dll"))
