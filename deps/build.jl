@@ -5,7 +5,7 @@ WinRPM.update()
 if is_windows()
     winrpm_bin = joinpath(WinRPM.installdir, "usr", Sys.MACHINE,
         "sys-root", "mingw", "bin")
-    dlls = ["libgfortran-3", "libquadmath-0", "libstdc++-6", "libwinpthread-1",
+    dlls = ["libgfortran-4", "libquadmath-0", "libstdc++-6", "libwinpthread-1",
         "libssp-0", WORD_SIZE==32 ? "libgcc_s_sjlj-1" : "libgcc_s_seh-1"]
     dlls_to_download = Compat.String[]
     for lib in dlls
@@ -52,7 +52,7 @@ if is_windows()
             buf = PipeBuffer()
             showerror(buf, err)
             warn("Could not update Julia's gcc dlls, some WinRPM packages may not work.\n" *
-                "Error was: $(readall(buf))\n" *
+                "Error was: $(readstring(buf))\n" *
                 "Try running Julia as administrator and calling `Pkg.build(\"WinRPM\")`.")
         end
     end
