@@ -44,7 +44,9 @@ if is_windows()
             for lib in dlls_to_update
                 # it's possible to move an in-use dll and put a new file where
                 # it used to be, but not delete or overwrite it in-place?
-                mv(joinpath(JULIA_HOME, lib * ".dll"), joinpath(JULIA_HOME, lib * "-copy.dll"))
+                if isfile(joinpath(JULIA_HOME, lib * ".dll"))
+                    mv(joinpath(JULIA_HOME, lib * ".dll"), joinpath(JULIA_HOME, lib * "-copy.dll"))
+                end
                 cp(joinpath(winrpm_bin, lib * ".dll"), joinpath(JULIA_HOME, lib * ".dll"))
             end
             warn("Updated Julia's gcc dlls, you may need to restart Julia for some WinRPM packages to work.")
