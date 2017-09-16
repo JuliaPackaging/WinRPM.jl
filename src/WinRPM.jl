@@ -77,7 +77,7 @@ end
 
 getcachedir(source) = getcachedir(cachedir, source)
 function getcachedir(cachedir, source)
-    open(indexpath, isfile(indexpath)?"r+":"w+") do cacheindex
+    open(indexpath, isfile(indexpath) ? "r+" : "w+") do cacheindex
         seek(cacheindex,0)
         lines = readlines(cacheindex)
         for (idx,line) in enumerate(lines)
@@ -397,7 +397,7 @@ end
 
 function prepare_install(pkg::Union{Package,Packages})
     packages = deps(pkg).p
-    open(installedlist, isfile(installedlist)?"r+":"w+") do installed
+    open(installedlist, isfile(installedlist) ? "r+" : "w+") do installed
         seek(installed, 0)
         installed_list = Vector{AbstractString}[]
         for line in eachline(installed)
@@ -486,7 +486,7 @@ function do_install(package::Package)
     end
     isfile(cpio) && rm(cpio)
     ver = replace(join(rpm_ver(package), ','), r"\s", "")
-    open(installedlist, isfile(installedlist)?"r+":"w+") do installed
+    open(installedlist, isfile(installedlist) ? "r+" : "w+") do installed
         for entry in package[xpath"format/rpm:provides/rpm:entry[@name]"]
             provides = entry.attr["name"]
             seekend(installed)
