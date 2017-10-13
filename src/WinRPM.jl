@@ -3,9 +3,9 @@ __precompile__()
 module WinRPM
 
 using Compat
-using Compat: String, KERNEL
+using Compat.Sys: iswindows, isunix
 
-if is_unix()
+if isunix()
     using HTTPClient.HTTPC
 end
 
@@ -15,7 +15,7 @@ import Base: show, getindex, wait_close, pipeline_error
 
 #export update, whatprovides, search, lookup, install, deps, help
 
-if is_windows()
+if iswindows()
     const OS_ARCH = Sys.WORD_SIZE == 64 ? "mingw64" : "mingw32"
 else
     const OS_ARCH = string(Sys.ARCH)
@@ -27,7 +27,7 @@ function mkdirs(dir)
     end
 end
 
-global const packages = ETree[]
+const packages = ETree[]
 
 function __init__()
     empty!(packages)
@@ -46,12 +46,12 @@ function __init__()
     update(false, false)
 end
 
-if is_unix()
+if isunix()
     function download(source::AbstractString)
         x = HTTPC.get(source)
         unsafe_string(x.body), x.http_code
     end
-elseif is_windows()
+elseif iswindows()
     function download(source::AbstractString; retry=5)
         dest = Vector{UInt16}(261)
         for i in 1:retry
@@ -62,7 +62,7 @@ elseif is_windows()
                 resize!(dest, findfirst(dest, 0) - 1)
                 filename = transcode(String, dest)
                 if isfile(filename)
-                    return readstring(filename), 200
+                    return read(filename, String), 200
                 end
             else
                 warn("Unknown download failure, error code: $res")
@@ -72,7 +72,7 @@ elseif is_windows()
         return "", 0
     end
 else
-    error("Platform not supported: $(KERNEL)")
+    error("Platform not supported: $(Sys.KERNEL)")
 end
 
 getcachedir(source) = getcachedir(cachedir, source)
@@ -141,7 +141,7 @@ function update(ignorecache::Bool=false, allow_remote::Bool=true)
                 gunzip = true
             end
             if !(ignorecache || (never_cache && allow_remote)) && isfile(path2)
-                return readstring(path2)
+                return read(path2, String)
             end
             if !allow_remote
                 warn("skipping $path, not in cache -- call WinRPM.update() to download")
@@ -193,7 +193,7 @@ function update(ignorecache::Bool=false, allow_remote::Bool=true)
     end
 end
 
-immutable Package
+struct Package
     pd::ETree
 end
 Package(p::Package) = p
@@ -201,7 +201,7 @@ Package(p::Vector{ETree}) = [Package(pkg) for pkg in p]
 
 getindex(pkg::Package,x) = getindex(pkg.pd, x)
 
-immutable Packages{T<:Union{Set{ETree},Vector{ETree}}}
+struct Packages{T<:Union{Set{ETree},Vector{ETree}}}
     p::T
 end
 Packages(pkgs::Vector{Package}) = Packages([p.pd for p in pkgs])
@@ -280,7 +280,7 @@ whatprovides(file::AbstractString, arch::AbstractString=OS_ARCH) =
 rpm_provides(requires::AbstractString) =
     Packages(xpath".[format/rpm:provides/rpm:entry[@name='$requires']]")
 
-function rpm_provides{T<:AbstractString}(requires::Union{Vector{T},Set{T}})
+function rpm_provides(requires::Union{Vector{T},Set{T}}) where T<:AbstractString
     pkgs = Set{ETree}()
     for x in requires
         pkgs_ = rpm_provides(x)
@@ -316,16 +316,16 @@ function rpm_ver(pkg::Union{Package,ETree})
             pkg[xpath"version/@epoch"][1])
 end
 
-type RPMVersionNumber
+struct RPMVersionNumber
     s::AbstractString
 end
 Base.convert(::Type{RPMVersionNumber}, s::AbstractString) = RPMVersionNumber(s)
-@compat Base.:(<)(a::RPMVersionNumber, b::RPMVersionNumber) = false
-@compat Base.:(==)(a::RPMVersionNumber, b::RPMVersionNumber) = true
-@compat Base.:(<=)(a::RPMVersionNumber, b::RPMVersionNumber) = (a == b) || (a < b)
-@compat Base.:(>)(a::RPMVersionNumber, b::RPMVersionNumber) = !(a <= b)
-@compat Base.:(>=)(a::RPMVersionNumber, b::RPMVersionNumber) = !(a < b)
-@compat Base.:(!=)(a::RPMVersionNumber, b::RPMVersionNumber) = !(a == b)
+Base.:(<)(a::RPMVersionNumber, b::RPMVersionNumber) = false
+Base.:(==)(a::RPMVersionNumber, b::RPMVersionNumber) = true
+Base.:(<=)(a::RPMVersionNumber, b::RPMVersionNumber) = (a == b) || (a < b)
+Base.:(>)(a::RPMVersionNumber, b::RPMVersionNumber) = !(a <= b)
+Base.:(>=)(a::RPMVersionNumber, b::RPMVersionNumber) = !(a < b)
+Base.:(!=)(a::RPMVersionNumber, b::RPMVersionNumber) = !(a == b)
 
 function getepoch(pkg::Package)
     epoch = pkg[xpath"version/@epoch"]
@@ -360,7 +360,7 @@ end
 
 install(pkg::AbstractString, arch::AbstractString=OS_ARCH; yes=false) = install(select(lookup(pkg, arch), pkg); yes=yes)
 
-function install{T<:AbstractString}(pkgs::Vector{T}, arch::AbstractString=OS_ARCH; yes=false)
+function install(pkgs::Vector{T}, arch::AbstractString=OS_ARCH; yes=false) where T<:AbstractString
     todo = Package[]
     for pkg in pkgs
         push!(todo, select(lookup(pkg, arch), pkg))
@@ -446,7 +446,7 @@ function do_install(packages::Packages)
     end
 end
 
-const exe7z = is_windows() ? joinpath(JULIA_HOME, "7z.exe") : "7z"
+const exe7z = iswindows() ? joinpath(JULIA_HOME, "7z.exe") : "7z"
 
 function do_install(package::Package)
     name = names(package)
@@ -467,12 +467,12 @@ function do_install(package::Package)
     local err = nothing
     for cmd = [`$exe7z x -y $path2 -o$cache`, `$exe7z x -y $cpio -o$installdir`]
         (out, pc) = open(cmd, "r")
-        stdoutstr = readstring(out)
+        stdoutstr = read(out, String)
         if !success(pc)
             wait_close(out)
             println(stdoutstr)
             err = pc
-            if is_unix()
+            if isunix()
                 cd(installdir) do
                     if success(`rpm2cpio $path2` | `cpio -imud`)
                         err = nothing
@@ -508,10 +508,6 @@ function prompt_ok(question)
         end
         println("Please answer Y or N")
     end
-end
-
-function help()
-    less(joinpath(dirname(dirname(@__FILE__)), "README.md"))
 end
 
 include("winrpm_bindeps.jl")
