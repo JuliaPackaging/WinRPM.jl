@@ -6,11 +6,11 @@ import BinDeps: PackageManager, can_use, package_available, available_version,
 
 update_once = true
 
-type RPM <: PackageManager
+struct RPM <: PackageManager
     package
 end
 
-can_use(::Type{RPM}) = is_windows()
+can_use(::Type{RPM}) = iswindows()
 function package_available(p::RPM)
     global update_once
     !can_use(RPM) && return false
@@ -30,7 +30,7 @@ available_version(p::RPM) = lookup(p.package).p[1][xpath"version/@ver"][1]
 libdir(p::RPM,dep) = joinpath(dirname(dirname(@__FILE__)), "deps", "usr", "$(Sys.ARCH)-w64-mingw32", "sys-root", "mingw", "bin")
 pkg_name(p::RPM) = p.package
 
-provider{T<:AbstractString}(::Type{RPM}, packages::Vector{T}; opts...) = RPM(packages)
+provider(::Type{RPM}, packages::Vector{T}; opts...) where {T<:AbstractString} = RPM(packages)
 provides(::Type{RPM}, packages::AbstractArray, dep::LibraryDependency; opts...) =
     provides(provider(RPM, packages; opts...), dep; opts...)
 
