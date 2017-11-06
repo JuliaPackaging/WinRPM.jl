@@ -223,19 +223,19 @@ function show(io::IO, pkg::Package)
     println(io,"  Arch: ", LibExpat.string_value(pkg["arch"][1]))
     println(io,"  URL: ", LibExpat.string_value(pkg["url"][1]))
     println(io,"  License: ", LibExpat.string_value(pkg["format/rpm:license"][1]))
-    println(io,"  Description: ", replace(LibExpat.string_value(pkg["description"][1]), r"\r\n|\r|\n", "\n    "))
+    print(io,"  Description: ", replace(LibExpat.string_value(pkg["description"][1]), r"\r\n|\r|\n", "\n    "))
 end
 
 function show(io::IO, pkgs::Packages)
-    println(io, "WinRPM Package Set:")
+    print(io, "WinRPM Package Set:")
     if isempty(pkgs)
-        println(io, "  <empty>")
+        print(io, "\n  <empty>")
     else
         for (i,pkg) = enumerate(pkgs)
             name = names(pkg)
             summary = LibExpat.string_value(pkg["summary"][1])
             arch = LibExpat.string_value(pkg["arch"][1])
-            println(io,"  $i. $name ($arch) - $summary")
+            print(io,"\n  $i. $name ($arch) - $summary")
         end
     end
 end
