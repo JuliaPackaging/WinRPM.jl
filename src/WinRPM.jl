@@ -13,7 +13,7 @@ using Libz, LibExpat, URIParser
 
 import Base: show, getindex, wait_close, pipeline_error
 
-#export update, whatprovides, search, lookup, install, deps, help
+#export update, whatprovides, search, lookup, install, deps
 
 if iswindows()
     const OS_ARCH = Sys.WORD_SIZE == 64 ? "mingw64" : "mingw32"
