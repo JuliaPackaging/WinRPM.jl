@@ -510,10 +510,9 @@ function prompt_ok(question)
     end
 end
 
-function help()
-    less(joinpath(dirname(dirname(@__FILE__)), "README.md"))
-end
-
 include("winrpm_bindeps.jl")
+
+# deprecations 
+@deprecate help() "Please see the README.md file at https://github.com/JuliaPackaging/WinRPM.jl"
 
 end
