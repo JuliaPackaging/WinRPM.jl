@@ -13,7 +13,7 @@ using Libz, LibExpat, URIParser
 
 import Base: show, getindex, wait_close, pipeline_error
 
-#export update, whatprovides, search, lookup, install, deps, help
+#export update, whatprovides, search, lookup, install, deps
 
 if iswindows()
     const OS_ARCH = Sys.WORD_SIZE == 64 ? "mingw64" : "mingw32"
@@ -510,10 +510,9 @@ function prompt_ok(question)
     end
 end
 
-function help()
-    less(joinpath(dirname(dirname(@__FILE__)), "README.md"))
-end
-
 include("winrpm_bindeps.jl")
+
+# deprecations 
+@deprecate help() "Please see the README.md file at https://github.com/JuliaPackaging/WinRPM.jl"
 
 end
