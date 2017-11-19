@@ -83,7 +83,7 @@ For stand-alone use, add the following lines to your `%APPDATA%/julia/.juliarc.j
 
 ```julia
 RPMbindir = Pkg.dir("WinRPM","deps","usr","$(Sys.ARCH)-w64-mingw32","sys-root","mingw","bin")
-push!(DL_LOAD_PATH,RPMbindir)
+push!(Libdl.DL_LOAD_PATH,RPMbindir)
 ENV["PATH"]=ENV["PATH"]*";"*RPMbindir
 ```
 
