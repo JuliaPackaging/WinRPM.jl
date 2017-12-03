@@ -59,7 +59,7 @@ elseif iswindows()
               (Ptr{Void}, Ptr{UInt16}, Ptr{UInt16}, Clong, Cint, Ptr{Void}),
               C_NULL, transcode(UInt16, source), dest, sizeof(dest) >> 1, 0, C_NULL)
             if res == 0
-                resize!(dest, findfirst(dest, 0) - 1)
+                resize!(dest, findfirst(iszero, dest) - 1)
                 filename = transcode(String, dest)
                 if isfile(filename)
                     return read(filename, String), 200
