@@ -467,7 +467,7 @@ function do_install(package::Package)
     if VERSION < v"0.7.0-DEV.2181"
         cpio = splitext(path2)[1]*".cpio"
     else
-        cpio = splitext(joinpath(cache, escape(last(split(path, "/")))))[1] * ".cpio"
+        cpio = splitext(joinpath(cache, escape(basename(path))))[1] * ".cpio"
     end
 
     local err = nothing
