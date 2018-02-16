@@ -464,7 +464,7 @@ function do_install(package::Package)
     end
     info("Extracting: ", name)
 
-    @static if VERSION < v"0.7.0-DEV"
+    @static if VERSION < v"0.7.0-DEV.2181"
         cpio = splitext(path2)[1]*".cpio"
     else
         cpio = splitext(joinpath(cache, escape(last(split(path, "/")))))[1] * ".cpio"
