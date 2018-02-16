@@ -3,7 +3,7 @@ __precompile__()
 module WinRPM
 
 using Compat
-using Compat.Sys: iswindows, isunix
+using Compat.Sys: iswindows, isunix, BINDIR
 
 if isunix()
     using HTTPClient.HTTPC
@@ -446,7 +446,7 @@ function do_install(packages::Packages)
     end
 end
 
-const exe7z = iswindows() ? joinpath(JULIA_HOME, "7z.exe") : "7z"
+const exe7z = iswindows() ? joinpath(BINDIR, "7z.exe") : "7z"
 
 function do_install(package::Package)
     name = names(package)
