@@ -326,6 +326,7 @@ Base.:(<=)(a::RPMVersionNumber, b::RPMVersionNumber) = (a == b) || (a < b)
 Base.:(>)(a::RPMVersionNumber, b::RPMVersionNumber) = !(a <= b)
 Base.:(>=)(a::RPMVersionNumber, b::RPMVersionNumber) = !(a < b)
 Base.:(!=)(a::RPMVersionNumber, b::RPMVersionNumber) = !(a == b)
+Base.isless(a::RPMVersionNumber, b::RPMVersionNumber) = (a < b)
 
 function getepoch(pkg::Package)
     epoch = pkg[xpath"version/@epoch"]
@@ -458,12 +459,18 @@ function do_install(package::Package)
         error("failed to download $name $(data[2]) from $source/$path.")
     end
     cache = getcachedir(source)
-    path2 = joinpath(cache,escape(path))
+    path2 = joinpath(cache, basename(path))
     open(path2, "w") do f
         write(f, data[1])
     end
     info("Extracting: ", name)
-    cpio = splitext(path2)[1]*".cpio"
+    
+    @static if VERSION < v"0.7.0-DEV"
+        cpio = splitext(path2)[1]*".cpio"
+    else
+        cpio = splitext(joinpath(cache, escape(last(split(path, "/")))))[1] * ".cpio"
+    end
+
     local err = nothing
     for cmd = [`$exe7z x -y $path2 -o$cache`, `$exe7z x -y $cpio -o$installdir`]
         (out, pc) = open(cmd, "r")
