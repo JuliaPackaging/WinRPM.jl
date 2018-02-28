@@ -4,6 +4,7 @@ module WinRPM
 
 using Compat
 using Compat.Sys: iswindows, isunix, BINDIR
+using Compat: @info, Nothing
 
 if isunix()
     using HTTPClient.HTTPC
@@ -56,7 +57,7 @@ elseif iswindows()
         dest = Vector{UInt16}(261)
         for i in 1:retry
             res = ccall((:URLDownloadToCacheFileW, :urlmon), stdcall, Cuint,
-              (Ptr{Void}, Ptr{UInt16}, Ptr{UInt16}, Clong, Cint, Ptr{Void}),
+              (Ptr{Nothing}, Ptr{UInt16}, Ptr{UInt16}, Clong, Cint, Ptr{Nothing}),
               C_NULL, transcode(UInt16, source), dest, sizeof(dest) >> 1, 0, C_NULL)
             if res == 0
                 resize!(dest, findfirst(iszero, dest) - 1)
@@ -147,7 +148,7 @@ function update(ignorecache::Bool=false, allow_remote::Bool=true)
                 warn("skipping $path, not in cache -- call WinRPM.update() to download")
                 return nothing
             end
-            info("Downloading $source/$path")
+            @info("Downloading $source/$path")
             data = download("$source/$path")
             if data[2] != 200
                 warn("received error $(data[2]) while downloading $source/$path")
@@ -249,7 +250,7 @@ function select(pkgs::Packages, pkg::AbstractString)
     elseif length(pkgs) == 1
         pkg = pkgs[1]
     else
-        info("Multiple package candidates found for $pkg, picking newest.")
+        @info("Multiple package candidates found for $pkg, picking newest.")
         epochs = [getepoch(pkg) for pkg in pkgs]
         pkgs = pkgs[findin(epochs,maximum(epochs))]
         if length(pkgs) > 1
@@ -320,7 +321,7 @@ struct RPMVersionNumber
     s::AbstractString
 end
 Base.convert(::Type{RPMVersionNumber}, s::AbstractString) = RPMVersionNumber(s)
-Base.:(<)(a::RPMVersionNumber, b::RPMVersionNumber) = false
+Base.isless(a::RPMVersionNumber, b::RPMVersionNumber) = false
 Base.:(==)(a::RPMVersionNumber, b::RPMVersionNumber) = true
 Base.:(<=)(a::RPMVersionNumber, b::RPMVersionNumber) = (a == b) || (a < b)
 Base.:(>)(a::RPMVersionNumber, b::RPMVersionNumber) = !(a <= b)
@@ -371,16 +372,16 @@ end
 function install(pkg::Union{Package,Packages}; yes=false)
     todo, toup = prepare_install(pkg)
     if isempty(todo) && isempty(toup)
-        info("Nothing to do")
+        @info("Nothing to do")
     else
         if !isempty(toup)
-            info("Packages to update:  ", join(names(toup), ", "))
+            @info("Packages to update:  ", join(names(toup), ", "))
             yesold = yes || prompt_ok("Continue with updates")
         else
             yesold = false
         end
         if !isempty(todo)
-            info("Packages to install: ", join(names(todo), ", "))
+            @info("Packages to install: ", join(names(todo), ", "))
             yesnew = yes || prompt_ok("Continue with install")
         else
             yesnew = false
@@ -391,7 +392,7 @@ function install(pkg::Union{Package,Packages}; yes=false)
         if yesnew
             do_install(todo)
         end
-        info("Complete")
+        @info("Complete")
     end
 end
 
@@ -451,21 +452,23 @@ const exe7z = iswindows() ? joinpath(BINDIR, "7z.exe") : "7z"
 function do_install(package::Package)
     name = names(package)
     source, path = rpm_url(package)
-    info("Downloading: ", name)
+    @info("Downloading: ", "$source/$path")
     data = download("$source/$path")
     if data[2] != 200
-        info("try running WinRPM.update() and retrying the install")
+        @info("try running WinRPM.update() and retrying the install")
         error("failed to download $name $(data[2]) from $source/$path.")
     end
     cache = getcachedir(source)
-    path2 = joinpath(cache,escape(path))
+    path2 = joinpath(cache, escape(path))
     open(path2, "w") do f
         write(f, data[1])
     end
-    info("Extracting: ", name)
+    @info("Extracting: ", name)
     cpio = splitext(path2)[1]*".cpio"
+    cpio = replace(cpio, "noarch%2F", "")
     local err = nothing
     for cmd = [`$exe7z x -y $path2 -o$cache`, `$exe7z x -y $cpio -o$installdir`]
+        @info(cmd)
         (out, pc) = open(cmd, "r")
         stdoutstr = read(out, String)
         if !success(pc)
@@ -512,7 +515,7 @@ end
 
 include("winrpm_bindeps.jl")
 
-# deprecations 
+# deprecations
 @deprecate help() "Please see the README.md file at https://github.com/JuliaPackaging/WinRPM.jl"
 
 end
