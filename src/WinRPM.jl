@@ -58,7 +58,7 @@ elseif iswindows()
         client = "New-Object System.Net.Webclient"
         # in the following we escape ' with '' (see https://ss64.com/ps/syntax-esc.html)
         filename = joinpath(tempdir(), split(source, "/")[end])        
-        downloadfile = "($client).DownloadFile('$(replace(source, "'" => "''"))', '$(replace(filename, "'" => "''"))')"        
+        downloadfile = "($client).DownloadFile('$(@compat replace(source, "'" => "''"))', '$(@compat replace(filename, "'" => "''"))')"        
         for i in 1:retry
             try
                 run(`$ps -NoProfile -Command "$tls12; $downloadfile"`)                        
