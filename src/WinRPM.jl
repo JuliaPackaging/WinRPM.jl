@@ -52,15 +52,24 @@ if isunix()
         unsafe_string(x.body), x.http_code
     end
 elseif iswindows()
-    function download(source::AbstractString)
+    function download(source::AbstractString; retry=5)
         ps = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
         tls12 = "[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12"
         client = "New-Object System.Net.Webclient"
         # in the following we escape ' with '' (see https://ss64.com/ps/syntax-esc.html)
         filename = joinpath(tempdir(), split(source, "/")[end])        
         downloadfile = "($client).DownloadFile('$(replace(source, "'" => "''"))', '$(replace(filename, "'" => "''"))')"        
-        run(`$ps -NoProfile -Command "$tls12; $downloadfile"`)                        
-        readstring(filename), 200
+        for i in 1:retry
+            try
+                run(`$ps -NoProfile -Command "$tls12; $downloadfile"`)                        
+                if isfile(filename)
+                    return readstring(filename), 200
+                end
+            catch ex
+                warn("Unknown download failure. Retry $i/$retry downloading: $source")
+            end
+        end
+        return "", 0
     end
 else
     error("Platform not supported: $(Sys.KERNEL)")
