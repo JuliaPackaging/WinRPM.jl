@@ -69,6 +69,8 @@ elseif iswindows()
                 warn("Unknown download failure. Retry $i/$retry downloading: $source")
             end
         end
+        warn("""Unknown download failure. WinRPM download function relies on Windows PowerShell functionality.
+            Check that .NET framework 4.5 or higher is installed (TLS 1.2 protocol support)""")
         return "", 0
     end
 else
