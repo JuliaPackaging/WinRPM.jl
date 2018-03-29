@@ -57,11 +57,11 @@ elseif iswindows()
         tls12 = "[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12"
         client = "New-Object System.Net.Webclient"
         # in the following we escape ' with '' (see https://ss64.com/ps/syntax-esc.html)
-        filename = joinpath(tempdir(), split(source, "/")[end])        
-        downloadfile = "($client).DownloadFile('$(@compat replace(source, "'" => "''"))', '$(@compat replace(filename, "'" => "''"))')"        
+        filename = joinpath(tempdir(), split(source, "/")[end])
+        downloadfile = "($client).DownloadFile('$(replace(source, "'" => "''"))', '$(replace(filename, "'" => "''"))')"
         for i in 1:retry
             try
-                run(`$ps -NoProfile -Command "$tls12; $downloadfile"`)                        
+                run(`$ps -NoProfile -Command "$tls12; $downloadfile"`)
                 if isfile(filename)
                     return readstring(filename), 200
                 end
@@ -70,7 +70,7 @@ elseif iswindows()
             end
         end
         warn("""Unknown download failure. WinRPM download function relies on Windows PowerShell functionality.
-            Check that .NET framework 4.5 or higher is installed (TLS 1.2 protocol support)""")
+            Check that PowerShell 3 or higher is installed and TLS 1.2 protocol support enabled.)""")
         return "", 0
     end
 else
