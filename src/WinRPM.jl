@@ -70,7 +70,7 @@ elseif iswindows()
             end
         end
         warn("""Unknown download failure. WinRPM download function relies on Windows PowerShell functionality.
-            Check that PowerShell 3 or higher is installed and TLS 1.2 protocol support enabled.)""")
+            Check that PowerShell 3 or higher is installed and TLS 1.2 protocol support enabled.""")
         return "", 0
     end
 else
