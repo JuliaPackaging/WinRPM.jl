@@ -68,30 +68,29 @@ if VERSION < v"0.7.0-DEV"
                 else
                     warn("Unknown download failure, error code: $res")
                 end
-                warn("Retry $i/$retry downloading: $source")
-                return "", 0
+                warn("Retry $i/$retry downloading: $source")                
             end
+            return "", 0
         end
     else
         error("Platform not supported: $(Sys.KERNEL)")
     end
 else
-    function download(source::AbstractString; retry=5)
+    function download(source::AbstractString; retry=5)        
         for i in 1:retry
             try
                 filename = joinpath(tempdir(), split(source, "/")[end])
                 filename = Base.download(source, filename)
                 if isfile(filename)
                     return readstring(filename), 200
-                end
+                end                
             catch ex
-                warn("Unknown download failure. Retry $i/$retry downloading: $source")
+                if i == retry
+                    warn("download from $source failed: $ex")
+                    return "", 0
+                end
             end
-        end
-        warn("""Unknown download failure in `Base.download` function""")
-        if iswindows()
-            warn("Base.download function relies on Windows PowerShell functionality. "*
-            "Check that PowerShell 3 or higher is installed and TLS 1.2 protocol support enabled.")
+            warn("Retry $i/$retry downloading: $source")
         end        
         return "", 0
     end
