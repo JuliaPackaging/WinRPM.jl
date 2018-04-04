@@ -46,22 +46,41 @@ function __init__()
     update(false, false)
 end
 
-if isunix()
-    function download(source::AbstractString)
-        x = HTTPC.get(source)
-        unsafe_string(x.body), x.http_code
+if VERSION < v"0.7.0-DEV"
+    if isunix()
+        function download(source::AbstractString)
+            x = HTTPC.get(source)
+            unsafe_string(x.body), x.http_code
+        end
+    elseif iswindows()
+        function download(source::AbstractString; retry=5)
+            dest = Vector{UInt16}(261)
+            for i in 1:retry
+                res = ccall((:URLDownloadToCacheFileW, :urlmon), stdcall, Cuint,
+                (Ptr{Void}, Ptr{UInt16}, Ptr{UInt16}, Clong, Cint, Ptr{Void}),
+                C_NULL, transcode(UInt16, source), dest, sizeof(dest) >> 1, 0, C_NULL)
+                if res == 0
+                    resize!(dest, findfirst(iszero, dest) - 1)
+                    filename = transcode(String, dest)
+                    if isfile(filename)
+                        return read(filename, String), 200
+                    end
+                else
+                    warn("Unknown download failure, error code: $res")
+                end
+                warn("Retry $i/$retry downloading: $source")
+                return "", 0
+            end
+        end
+    else
+        error("Platform not supported: $(Sys.KERNEL)")
     end
-elseif iswindows()
+else
     function download(source::AbstractString; retry=5)
-        ps = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
-        tls12 = "[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12"
-        client = "New-Object System.Net.Webclient"
-        # in the following we escape ' with '' (see https://ss64.com/ps/syntax-esc.html)
-        filename = joinpath(tempdir(), split(source, "/")[end])
-        downloadfile = "($client).DownloadFile('$(replace(source, "'" => "''"))', '$(replace(filename, "'" => "''"))')"
         for i in 1:retry
             try
-                run(`$ps -NoProfile -Command "$tls12; $downloadfile"`)
+                filename = joinpath(tempdir(), split(source, "/")[end])
+                filename = Base.download(source, filename)
                 if isfile(filename)
                     return readstring(filename), 200
                 end
@@ -69,12 +88,13 @@ elseif iswindows()
                 warn("Unknown download failure. Retry $i/$retry downloading: $source")
             end
         end
-        warn("""Unknown download failure. WinRPM download function relies on Windows PowerShell functionality.
-            Check that PowerShell 3 or higher is installed and TLS 1.2 protocol support enabled.""")
+        warn("""Unknown download failure in `Base.download` function""")
+        if iswindows()
+            warn("Base.download function relies on Windows PowerShell functionality. "*
+            "Check that PowerShell 3 or higher is installed and TLS 1.2 protocol support enabled.")
+        end        
         return "", 0
     end
-else
-    error("Platform not supported: $(Sys.KERNEL)")
 end
 
 getcachedir(source) = getcachedir(cachedir, source)
