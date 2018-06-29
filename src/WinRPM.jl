@@ -447,12 +447,12 @@ function do_install(packages::Packages)
     end
 end
 
-const exe7z = if try; success(`7z`) catch; false end;
-    "7z"
-elseif iswindows()
+const exe7z = iswindows()
     joinpath(BINDIR, "7z.exe")
+elseif
+    joinpath(BINDIR, "7z")
 else
-    error("No 7z installed. Please install it for your machine")
+    error("No 7z installed. Please install it for your machine. If you're on windows and compiled Julia from source, you need to also execute `make win-extras` to get 7zip")
 end
 
 function do_install(package::Package)
@@ -477,6 +477,7 @@ function do_install(package::Package)
         stdoutstr = read(out, String)
         if !success(pc)
             wait_close(out)
+            println(STDERR, stdoutstr)
             err = pc
             if isunix()
                 cd(installdir) do
