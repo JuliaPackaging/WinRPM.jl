@@ -447,7 +447,13 @@ function do_install(packages::Packages)
     end
 end
 
-const exe7z = iswindows() ? joinpath(BINDIR, "7z.exe") : "7z"
+const exe7z = if try; success(`7z`) catch; false end;
+    "7z"
+elseif iswindows()
+    joinpath(BINDIR, "7z.exe")
+else
+    error("No 7z installed. Please install it for your machine")
+end
 
 function do_install(package::Package)
     name = names(package)
@@ -459,25 +465,18 @@ function do_install(package::Package)
         error("failed to download $name $(data[2]) from $source/$path.")
     end
     cache = getcachedir(source)
-    path2 = joinpath(cache,escape(path))
+    path2 = joinpath(cache, escape(path))
     open(path2, "w") do f
         write(f, data[1])
     end
     info("Extracting: ", name)
-
-    if VERSION < v"0.7.0-DEV.2181"
-        cpio = splitext(path2)[1]*".cpio"
-    else
-        cpio = splitext(joinpath(cache, escape(basename(path))))[1] * ".cpio"
-    end
-
+    cpio = splitext(path2)[1]*".cpio"
     local err = nothing
-    for cmd = [`$exe7z x -y $path2 -o$cache`, `$exe7z x -y $cpio -o$installdir`]
+    for cmd = (`$exe7z x -y $path2 -o$cache`, `$exe7z x -y $cpio -o$installdir`)
         (out, pc) = open(cmd, "r")
         stdoutstr = read(out, String)
         if !success(pc)
             wait_close(out)
-            println(stdoutstr)
             err = pc
             if isunix()
                 cd(installdir) do
@@ -486,7 +485,7 @@ function do_install(package::Package)
                     end
                 end
             end
-            isfile(cpio) && rm(cpio)
+            (try; isfile(cpio); catch; false end;) && rm(cpio)
             err !== nothing && pipeline_error(err)
             break
         end
@@ -519,7 +518,7 @@ end
 
 include("winrpm_bindeps.jl")
 
-# deprecations 
+# deprecations
 @deprecate help() "Please see the README.md file at https://github.com/JuliaPackaging/WinRPM.jl"
 
 end
