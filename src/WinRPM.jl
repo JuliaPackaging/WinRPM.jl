@@ -447,13 +447,22 @@ function do_install(packages::Packages)
     end
 end
 
-const exe7z = iswindows()
-    joinpath(BINDIR, "7z.exe")
-elseif
-    joinpath(BINDIR, "7z")
+const exe7z = if Sys.iswindows()
+    _exe7z = joinpath(Sys.BINDIR, "7z.exe")
+    if isfile(_exe7z)
+        _exe7z
+    else # if it's not located in win-extras lets get it catched by the second isfile check
+        joinpath(Sys.BINDIR, "..", "..", "dist-extras", "7z.exe")
+    end
 else
-    error("No 7z installed. Please install it for your machine. If you're on windows and compiled Julia from source, you need to also execute `make win-extras` to get 7zip")
+    joinpath(Sys.BINDIR, "7z")
 end
+
+if !isfile(exe7z) && success(`7z -h`)
+    warn("We're using 7z installed on your system. It might be out of date and cause problems. This usually happens when you're on windows with Julia compiled from source, and you didn't execute: `make win-extras` to get 7zip")
+elseif !isfile(exe7z)
+    error("No 7z installed. Please install it for your machine. If you're on windows and compiled Julia from source, you need to also execute `make win-extras` to get 7zip")
+end # else we're fine!
 
 function do_install(package::Package)
     name = names(package)
@@ -470,7 +479,7 @@ function do_install(package::Package)
         write(f, data[1])
     end
     info("Extracting: ", name)
-    cpio = splitext(path2)[1]*".cpio"
+    cpio = splitext(joinpath(cache, escape(basename(path))))[1] * ".cpio"
     local err = nothing
     for cmd = (`$exe7z x -y $path2 -o$cache`, `$exe7z x -y $cpio -o$installdir`)
         (out, pc) = open(cmd, "r")
@@ -486,7 +495,7 @@ function do_install(package::Package)
                     end
                 end
             end
-            (try; isfile(cpio); catch; false end;) && rm(cpio)
+            isfile(cpio) && rm(cpio)
             err !== nothing && pipeline_error(err)
             break
         end
