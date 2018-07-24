@@ -486,7 +486,7 @@ function do_install(package::Package)
         stdoutstr = read(out, String)
         if !success(pc)
             wait_close(out)
-            println(STDERR, stdoutstr)
+            println(stderr, stdoutstr)
             err = pc
             if isunix()
                 cd(installdir) do
