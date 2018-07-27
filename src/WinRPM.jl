@@ -9,7 +9,7 @@ if isunix()
     using HTTPClient.HTTPC
 end
 
-using Libz, LibExpat, URIParser
+using CodecZlib, LibExpat, URIParser
 
 import Base: show, getindex, wait_close, pipeline_error
 
@@ -153,7 +153,7 @@ function update(ignorecache::Bool=false, allow_remote::Bool=true)
                 warn("received error $(data[2]) while downloading $source/$path")
                 return nothing
             end
-            body = gunzip ? Libz.decompress(convert(Vector{UInt8},data[1])) : data[1]
+            body = gunzip ? transcode(GzipDecompressor, convert(Vector{UInt8}, data[1])) : data[1]
             open(path2, "w") do f
                 write(f, body)
             end
@@ -447,7 +447,22 @@ function do_install(packages::Packages)
     end
 end
 
-const exe7z = iswindows() ? joinpath(BINDIR, "7z.exe") : "7z"
+const exe7z = if Sys.iswindows()
+    _exe7z = joinpath(Sys.BINDIR, "7z.exe")
+    if isfile(_exe7z)
+        _exe7z
+    else # if it's not located in win-extras lets get it catched by the second isfile check
+        joinpath(Sys.BINDIR, "..", "..", "dist-extras", "7z.exe")
+    end
+else
+    joinpath(Sys.BINDIR, "7z")
+end
+
+if !isfile(exe7z) && success(`7z -h`)
+    warn("We're using 7z installed on your system. It might be out of date and cause problems. This usually happens when you're on windows with Julia compiled from source, and you didn't execute: `make win-extras` to get 7zip")
+elseif !isfile(exe7z)
+    error("No 7z installed. Please install it for your machine. If you're on windows and compiled Julia from source, you need to also execute `make win-extras` to get 7zip")
+end # else we're fine!
 
 function do_install(package::Package)
     name = names(package)
@@ -459,25 +474,19 @@ function do_install(package::Package)
         error("failed to download $name $(data[2]) from $source/$path.")
     end
     cache = getcachedir(source)
-    path2 = joinpath(cache,escape(path))
+    path2 = joinpath(cache, escape(path))
     open(path2, "w") do f
         write(f, data[1])
     end
     info("Extracting: ", name)
-
-    if VERSION < v"0.7.0-DEV.2181"
-        cpio = splitext(path2)[1]*".cpio"
-    else
-        cpio = splitext(joinpath(cache, escape(basename(path))))[1] * ".cpio"
-    end
-
+    cpio = splitext(joinpath(cache, escape(basename(path))))[1] * ".cpio"
     local err = nothing
-    for cmd = [`$exe7z x -y $path2 -o$cache`, `$exe7z x -y $cpio -o$installdir`]
+    for cmd = (`$exe7z x -y $path2 -o$cache`, `$exe7z x -y $cpio -o$installdir`)
         (out, pc) = open(cmd, "r")
         stdoutstr = read(out, String)
         if !success(pc)
             wait_close(out)
-            println(stdoutstr)
+            println(stderr, stdoutstr)
             err = pc
             if isunix()
                 cd(installdir) do
@@ -519,7 +528,7 @@ end
 
 include("winrpm_bindeps.jl")
 
-# deprecations 
+# deprecations
 @deprecate help() "Please see the README.md file at https://github.com/JuliaPackaging/WinRPM.jl"
 
 end
