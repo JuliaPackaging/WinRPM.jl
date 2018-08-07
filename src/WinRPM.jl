@@ -53,10 +53,10 @@ if isunix()
     end
 elseif iswindows()
     function download(source::AbstractString; retry=5)
-        dest = Vector{UInt16}(261)
+        dest = Vector{UInt16}(undef, 261)
         for i in 1:retry
             res = ccall((:URLDownloadToCacheFileW, :urlmon), stdcall, Cuint,
-              (Ptr{Void}, Ptr{UInt16}, Ptr{UInt16}, Clong, Cint, Ptr{Void}),
+              (Ptr{Cvoid}, Ptr{UInt16}, Ptr{UInt16}, Clong, Cint, Ptr{Cvoid}),
               C_NULL, transcode(UInt16, source), dest, sizeof(dest) >> 1, 0, C_NULL)
             if res == 0
                 resize!(dest, findfirst(iszero, dest) - 1)
@@ -115,6 +115,7 @@ function getcachedir(cachedir, source)
                 try
                     mkdir(cache)
                     break
+                catch
                 end
             end
         end
@@ -186,7 +187,7 @@ function update(ignorecache::Bool=false, allow_remote::Bool=true)
                 append!(packages,pkgs)
             end
         catch err
-            warn("encounted invalid data while parsing repomd")
+            @warn("encounted invalid data while parsing repomd")
             rethrow(err)
             continue
         end
@@ -251,7 +252,7 @@ function select(pkgs::Packages, pkg::AbstractString)
     else
         info("Multiple package candidates found for $pkg, picking newest.")
         epochs = [getepoch(pkg) for pkg in pkgs]
-        pkgs = pkgs[findin(epochs,maximum(epochs))]
+        pkgs = pkgs[findall(in(maximum(epochs)), epochs)]
         if length(pkgs) > 1
             versions = [convert(RPMVersionNumber, pkg[xpath"version/@ver"][1]) for pkg in pkgs]
             pkgs = pkgs[versions .== maximum(versions)]
@@ -259,7 +260,7 @@ function select(pkgs::Packages, pkg::AbstractString)
                 release = [convert(VersionNumber, pkg[xpath"version/@rel"][1]) for pkg in pkgs]
                 pkgs = pkgs[release .== maximum(release)]
                 if length(pkgs) > 1
-                    warn("Multiple package candidates have the same version, picking one at random")
+                    @warn("Multiple package candidates have the same version, picking one at random")
                 end
             end
         end
@@ -372,7 +373,7 @@ end
 function install(pkg::Union{Package,Packages}; yes=false)
     todo, toup = prepare_install(pkg)
     if isempty(todo) && isempty(toup)
-        info("Nothing to do")
+        @info("Nothing to do")
     else
         if !isempty(toup)
             info("Packages to update:  ", join(names(toup), ", "))
@@ -392,7 +393,7 @@ function install(pkg::Union{Package,Packages}; yes=false)
         if yesnew
             do_install(todo)
         end
-        info("Complete")
+        @info("Complete")
     end
 end
 
@@ -455,7 +456,7 @@ function do_install(package::Package)
     info("Downloading: ", name)
     data = download("$source/$path")
     if data[2] != 200
-        info("try running WinRPM.update() and retrying the install")
+        @info("try running WinRPM.update() and retrying the install")
         error("failed to download $name $(data[2]) from $source/$path.")
     end
     cache = getcachedir(source)
@@ -465,11 +466,7 @@ function do_install(package::Package)
     end
     info("Extracting: ", name)
 
-    if VERSION < v"0.7.0-DEV.2181"
-        cpio = splitext(path2)[1]*".cpio"
-    else
-        cpio = splitext(joinpath(cache, escape(basename(path))))[1] * ".cpio"
-    end
+    cpio = splitext(joinpath(cache, escape(basename(path))))[1] * ".cpio"
 
     local err = nothing
     for cmd = [`$exe7z x -y $path2 -o$cache`, `$exe7z x -y $cpio -o$installdir`]
@@ -507,7 +504,7 @@ function prompt_ok(question)
     while true
         print(question)
         print(" [y/N]? ")
-        ans = strip(readline(STDIN))
+        ans = strip(readline(stdin))
         if isempty(ans) || ans[1] == 'n' || ans[1] == 'N'
             return false
         elseif ans[1] == 'y' || ans[1] == 'Y'
