@@ -115,6 +115,7 @@ function getcachedir(cachedir, source)
                 try
                     mkdir(cache)
                     break
+                catch
                 end
             end
         end
