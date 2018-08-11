@@ -19,7 +19,7 @@ function package_available(p::RPM)
         pkgs = [pkgs]
     end
     if (update_once::Bool)
-        info("Updating WinRPM package list")
+        @info("Updating WinRPM package list")
         update() 
         update_once = false
     end
