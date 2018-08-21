@@ -468,6 +468,12 @@ function do_install(package::Package)
 
     cpio = splitext(joinpath(cache, escape(basename(path))))[1] * ".cpio"
 
+    #for cases where the filename contains special symbols, the .cpio file name should not be escaped
+    #also see https://github.com/JuliaPackaging/WinRPM.jl/pull/141
+    if(!isfile(cpio))
+        cpio =splitext(joinpath(cache, basename(path)))[1] * ".cpio"
+    end
+
     local err = nothing
     for cmd = [`$exe7z x -y $path2 -o$cache`, `$exe7z x -y $cpio -o$installdir`]
         (out, pc) = open(cmd, "r")
