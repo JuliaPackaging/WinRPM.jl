@@ -479,9 +479,10 @@ function do_install(package::Package)
 
     local err = nothing
     for cmd = [`$exe7z x -y $path2 -o$cache`, `$exe7z x -y $cpio -o$installdir`]
-        (out, pc) = open(cmd, "r")
+        proc = open(cmd, "r")
+        out, pc = proc.out, proc.exitcode
         stdoutstr = read(out, String)
-        if !success(pc)
+        if !success(proc)
             wait_close(out)
             println(stdoutstr)
             err = pc
