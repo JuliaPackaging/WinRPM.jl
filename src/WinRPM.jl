@@ -211,11 +211,17 @@ Packages(xpath::LibExpat.XPath) = Packages(packages[xpath])
 getindex(pkg::Packages,x) = Package(getindex(pkg.p,x))
 Base.length(pkg::Packages) = length(pkg.p)
 Base.isempty(pkg::Packages) = isempty(pkg.p)
-Base.iterate(pkg::Packages) = iterate(pkg.p)
-function Base.iterate(pkg::Packages,x)
-    res = iterate(pkg.p,x)
+function Base.iterate(pkg::Packages)
+    res = iterate(pkg.p)
     res === nothing && return res
-    (Package(p),s)
+    p, s = res
+    (Package(p), s)
+end
+function Base.iterate(pkg::Packages, x)
+    res = iterate(pkg.p, x)
+    res === nothing && return res
+    p, s = res
+    (Package(p), s)
 end
 
 function show(io::IO, pkg::Package)
