@@ -233,7 +233,7 @@ function show(io::IO, pkg::Package)
     println(io,"  Arch: ", LibExpat.string_value(pkg["arch"][1]))
     println(io,"  URL: ", LibExpat.string_value(pkg["url"][1]))
     println(io,"  License: ", LibExpat.string_value(pkg["format/rpm:license"][1]))
-    print(io,"  Description: ", replace(LibExpat.string_value(pkg["description"][1]), r"\r\n|\r|\n", "\n    "))
+    print(io,"  Description: ", replace(LibExpat.string_value(pkg["description"][1]), r"\r\n|\r|\n" => "\n    "))
 end
 
 function show(io::IO, pkgs::Packages)
@@ -419,7 +419,7 @@ function prepare_install(pkg::Union{Package,Packages})
         end
         toupdate = ETree[]
         filter!(packages) do p
-            ver = replace(join(rpm_ver(p), ','), r"\s", "")
+            ver = replace(join(rpm_ver(p), ','), r"\s" => "")
             oldver = false
             for entry in p[xpath"format/rpm:provides/rpm:entry[@name]"]
                 provides = entry.attr["name"]
@@ -498,7 +498,7 @@ function do_install(package::Package)
         end
     end
     isfile(cpio) && rm(cpio)
-    ver = replace(join(rpm_ver(package), ','), r"\s", "")
+    ver = replace(join(rpm_ver(package), ','), r"\s" => "")
     open(installedlist, isfile(installedlist) ? "r+" : "w+") do installed
         for entry in package[xpath"format/rpm:provides/rpm:entry[@name]"]
             provides = entry.attr["name"]
