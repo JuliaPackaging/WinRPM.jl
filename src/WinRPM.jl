@@ -65,9 +65,9 @@ elseif iswindows()
                     return read(filename, String), 200
                 end
             else
-                warn("Unknown download failure, error code: $res")
+                @warn("Unknown download failure, error code: $res")
             end
-            warn("Retry $i/$retry downloading: $source")
+            @warn("Retry $i/$retry downloading: $source")
         end
         return "", 0
     end
@@ -145,16 +145,16 @@ function update(ignorecache::Bool=false, allow_remote::Bool=true)
                 return read(path2, String)
             end
             if !allow_remote
-                warn("skipping $path, not in cache -- call WinRPM.update() to download")
+                @warn("skipping $path, not in cache -- call WinRPM.update() to download")
                 return nothing
             end
-            info("Downloading $source/$path")
+            @info("Downloading $source/$path")
             data = download("$source/$path")
             if data[2] != 200
-                warn("received error $(data[2]) while downloading $source/$path")
+                @warn("received error $(data[2]) while downloading $source/$path")
                 return nothing
             end
-            body = gunzip ? Libz.decompress(convert(Vector{UInt8},data[1])) : data[1]
+            body = gunzip ? Libz.decompress(Vector{UInt8}(data[1])) : data[1]
             open(path2, "w") do f
                 write(f, body)
             end
@@ -211,9 +211,18 @@ Packages(xpath::LibExpat.XPath) = Packages(packages[xpath])
 getindex(pkg::Packages,x) = Package(getindex(pkg.p,x))
 Base.length(pkg::Packages) = length(pkg.p)
 Base.isempty(pkg::Packages) = isempty(pkg.p)
-Base.start(pkg::Packages) = start(pkg.p)
-Base.next(pkg::Packages,x) = ((p,s)=next(pkg.p,x); (Package(p),s))
-Base.done(pkg::Packages,x) = done(pkg.p,x)
+function Base.iterate(pkg::Packages)
+    res = iterate(pkg.p)
+    res === nothing && return res
+    p, s = res
+    (Package(p), s)
+end
+function Base.iterate(pkg::Packages, x)
+    res = iterate(pkg.p, x)
+    res === nothing && return res
+    p, s = res
+    (Package(p), s)
+end
 
 function show(io::IO, pkg::Package)
     println(io,"WinRPM Package: ")
@@ -224,7 +233,7 @@ function show(io::IO, pkg::Package)
     println(io,"  Arch: ", LibExpat.string_value(pkg["arch"][1]))
     println(io,"  URL: ", LibExpat.string_value(pkg["url"][1]))
     println(io,"  License: ", LibExpat.string_value(pkg["format/rpm:license"][1]))
-    print(io,"  Description: ", replace(LibExpat.string_value(pkg["description"][1]), r"\r\n|\r|\n", "\n    "))
+    print(io,"  Description: ", replace(LibExpat.string_value(pkg["description"][1]), r"\r\n|\r|\n" => "\n    "))
 end
 
 function show(io::IO, pkgs::Packages)
@@ -250,7 +259,7 @@ function select(pkgs::Packages, pkg::AbstractString)
     elseif length(pkgs) == 1
         pkg = pkgs[1]
     else
-        info("Multiple package candidates found for $pkg, picking newest.")
+        @info("Multiple package candidates found for $pkg, picking newest.")
         epochs = [getepoch(pkg) for pkg in pkgs]
         pkgs = pkgs[findall(in(maximum(epochs)), epochs)]
         if length(pkgs) > 1
@@ -286,7 +295,7 @@ function rpm_provides(requires::Union{Vector{T},Set{T}}) where T<:AbstractString
     for x in requires
         pkgs_ = rpm_provides(x)
         if isempty(pkgs_)
-            warn("Package not found that provides $x")
+            @warn("Package not found that provides $x")
         else
             push!(pkgs, select(pkgs_,x).pd)
         end
@@ -376,13 +385,13 @@ function install(pkg::Union{Package,Packages}; yes=false)
         @info("Nothing to do")
     else
         if !isempty(toup)
-            info("Packages to update:  ", join(names(toup), ", "))
+            @info("Packages to update:  ", join(names(toup), ", "))
             yesold = yes || prompt_ok("Continue with updates")
         else
             yesold = false
         end
         if !isempty(todo)
-            info("Packages to install: ", join(names(todo), ", "))
+            @info("Packages to install: ", join(names(todo), ", "))
             yesnew = yes || prompt_ok("Continue with install")
         else
             yesnew = false
@@ -410,7 +419,7 @@ function prepare_install(pkg::Union{Package,Packages})
         end
         toupdate = ETree[]
         filter!(packages) do p
-            ver = replace(join(rpm_ver(p), ','), r"\s", "")
+            ver = replace(join(rpm_ver(p), ','), r"\s" => "")
             oldver = false
             for entry in p[xpath"format/rpm:provides/rpm:entry[@name]"]
                 provides = entry.attr["name"]
@@ -453,7 +462,7 @@ const exe7z = iswindows() ? joinpath(BINDIR, "7z.exe") : "7z"
 function do_install(package::Package)
     name = names(package)
     source, path = rpm_url(package)
-    info("Downloading: ", name)
+    @info("Downloading: ", name)
     data = download("$source/$path")
     if data[2] != 200
         @info("try running WinRPM.update() and retrying the install")
@@ -464,15 +473,16 @@ function do_install(package::Package)
     open(path2, "w") do f
         write(f, data[1])
     end
-    info("Extracting: ", name)
+    @info("Extracting: ", name)
 
     cpio = splitext(joinpath(cache, escape(basename(path))))[1] * ".cpio"
 
     local err = nothing
     for cmd = [`$exe7z x -y $path2 -o$cache`, `$exe7z x -y $cpio -o$installdir`]
-        (out, pc) = open(cmd, "r")
+        proc = open(cmd, "r")
+        out, pc = proc.out, proc.exitcode
         stdoutstr = read(out, String)
-        if !success(pc)
+        if !success(proc)
             wait_close(out)
             println(stdoutstr)
             err = pc
@@ -489,7 +499,7 @@ function do_install(package::Package)
         end
     end
     isfile(cpio) && rm(cpio)
-    ver = replace(join(rpm_ver(package), ','), r"\s", "")
+    ver = replace(join(rpm_ver(package), ','), r"\s" => "")
     open(installedlist, isfile(installedlist) ? "r+" : "w+") do installed
         for entry in package[xpath"format/rpm:provides/rpm:entry[@name]"]
             provides = entry.attr["name"]
