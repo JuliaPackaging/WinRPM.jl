@@ -264,10 +264,10 @@ function select(pkgs::Packages, pkg::AbstractString)
         pkgs = pkgs[findall(in(maximum(epochs)), epochs)]
         if length(pkgs) > 1
             versions = [convert(RPMVersionNumber, pkg[xpath"version/@ver"][1]) for pkg in pkgs]
-            pkgs = pkgs[versions .== maximum(versions)]
+            pkgs = pkgs[versions .== Ref(maximum(versions))]
             if length(pkgs) > 1
-                release = [convert(VersionNumber, pkg[xpath"version/@rel"][1]) for pkg in pkgs]
-                pkgs = pkgs[release .== maximum(release)]
+                release = [VersionNumber(pkg[xpath"version/@rel"][1]) for pkg in pkgs]
+                pkgs = pkgs[release .== Ref(maximum(release))]
                 if length(pkgs) > 1
                     @warn("Multiple package candidates have the same version, picking one at random")
                 end
