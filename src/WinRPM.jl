@@ -466,13 +466,7 @@ function do_install(package::Package)
     end
     info("Extracting: ", name)
 
-    cpio = splitext(joinpath(cache, escape(basename(path))))[1] * ".cpio"
-
-    #for cases where the filename contains special symbols, the .cpio file name should not be escaped
-    #also see https://github.com/JuliaPackaging/WinRPM.jl/pull/141
-    if(!isfile(cpio))
-        cpio =splitext(joinpath(cache, basename(path)))[1] * ".cpio"
-    end
+    cpio = splitext(joinpath(cache, basename(path)))[1] * ".cpio"
 
     local err = nothing
     for cmd = [`$exe7z x -y $path2 -o$cache`, `$exe7z x -y $cpio -o$installdir`]
@@ -522,7 +516,7 @@ end
 
 include("winrpm_bindeps.jl")
 
-# deprecations 
+# deprecations
 @deprecate help() "Please see the README.md file at https://github.com/JuliaPackaging/WinRPM.jl"
 
 end
