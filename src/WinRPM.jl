@@ -347,6 +347,7 @@ Base.:(<=)(a::RPMVersionNumber, b::RPMVersionNumber) = (a == b) || (a < b)
 Base.:(>)(a::RPMVersionNumber, b::RPMVersionNumber) = !(a <= b)
 Base.:(>=)(a::RPMVersionNumber, b::RPMVersionNumber) = !(a < b)
 Base.:(!=)(a::RPMVersionNumber, b::RPMVersionNumber) = !(a == b)
+Base.isless(a::RPMVersionNumber, b::RPMVersionNumber) = (a < b)
 
 function getepoch(pkg::Package)
     epoch = pkg[xpath"version/@epoch"]
