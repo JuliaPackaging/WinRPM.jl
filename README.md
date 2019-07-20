@@ -61,7 +61,7 @@ package the following lines declare availability of the `tcl` and `tk` libraries
 from WinRPM:
 
 ```julia
-if is_windows()
+if Sys.iswindows()
     using WinRPM
     provides(WinRPM.RPM, "tk", tk, os=:Windows)
     provides(WinRPM.RPM, "tcl", tcl, os=:Windows)
