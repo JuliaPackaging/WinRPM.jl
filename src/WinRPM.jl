@@ -485,7 +485,13 @@ function do_install(package::Package)
         write(f, data[1])
     end
     info("Extracting: ", name)
-    cpio = splitext(path2)[1]*".cpio"
+
+    if VERSION < v"0.7.0-DEV.2181"
+        cpio = splitext(path2)[1]*".cpio"
+    else
+        cpio = splitext(joinpath(cache, escape(basename(path))))[1] * ".cpio"
+    end
+
     local err = nothing
     for cmd = [`$exe7z x -y $path2 -o$cache`, `$exe7z x -y $cpio -o$installdir`]
         (out, pc) = open(cmd, "r")
