@@ -54,10 +54,10 @@ if VERSION < v"0.7.0-DEV"
         end
     elseif iswindows()
         function download(source::AbstractString; retry=5)
-            dest = Vector{UInt16}(261)
+            dest = Vector{UInt16}(undef, 261)
             for i in 1:retry
                 res = ccall((:URLDownloadToCacheFileW, :urlmon), stdcall, Cuint,
-                (Ptr{Void}, Ptr{UInt16}, Ptr{UInt16}, Clong, Cint, Ptr{Void}),
+                (Ptr{Cvoid}, Ptr{UInt16}, Ptr{UInt16}, Clong, Cint, Ptr{Cvoid}),
                 C_NULL, transcode(UInt16, source), dest, sizeof(dest) >> 1, 0, C_NULL)
                 if res == 0
                     resize!(dest, findfirst(iszero, dest) - 1)
@@ -68,7 +68,7 @@ if VERSION < v"0.7.0-DEV"
                 else
                     warn("Unknown download failure, error code: $res")
                 end
-                warn("Retry $i/$retry downloading: $source")                
+                warn("Retry $i/$retry downloading: $source")
             end
             return "", 0
         end
@@ -76,22 +76,22 @@ if VERSION < v"0.7.0-DEV"
         error("Platform not supported: $(Sys.KERNEL)")
     end
 else
-    function download(source::AbstractString; retry=5)        
+    function download(source::AbstractString; retry=5)
         for i in 1:retry
             try
                 filename = joinpath(tempdir(), split(source, "/")[end])
                 filename = Base.download(source, filename)
                 if isfile(filename)
                     return readstring(filename), 200
-                end                
+                end
             catch ex
                 if i == retry
-                    warn("download from $source failed: $ex")
+                    @warn("download from $source failed: $ex")
                     return "", 0
                 end
             end
-            warn("Retry $i/$retry downloading: $source")
-        end        
+            @warn("Retry $i/$retry downloading: $source")
+        end
         return "", 0
     end
 end
@@ -136,6 +136,7 @@ function getcachedir(cachedir, source)
                 try
                     mkdir(cache)
                     break
+                catch
                 end
             end
         end
@@ -165,16 +166,16 @@ function update(ignorecache::Bool=false, allow_remote::Bool=true)
                 return read(path2, String)
             end
             if !allow_remote
-                warn("skipping $path, not in cache -- call WinRPM.update() to download")
+                @warn("skipping $path, not in cache -- call WinRPM.update() to download")
                 return nothing
             end
-            info("Downloading $source/$path")
+            @info("Downloading $source/$path")
             data = download("$source/$path")
             if data[2] != 200
-                warn("received error $(data[2]) while downloading $source/$path")
+                @warn("received error $(data[2]) while downloading $source/$path")
                 return nothing
             end
-            body = gunzip ? Libz.decompress(convert(Vector{UInt8},data[1])) : data[1]
+            body = gunzip ? Libz.decompress(Vector{UInt8}(data[1])) : data[1]
             open(path2, "w") do f
                 write(f, body)
             end
@@ -207,7 +208,7 @@ function update(ignorecache::Bool=false, allow_remote::Bool=true)
                 append!(packages,pkgs)
             end
         catch err
-            warn("encounted invalid data while parsing repomd")
+            @warn("encounted invalid data while parsing repomd")
             rethrow(err)
             continue
         end
@@ -231,9 +232,18 @@ Packages(xpath::LibExpat.XPath) = Packages(packages[xpath])
 getindex(pkg::Packages,x) = Package(getindex(pkg.p,x))
 Base.length(pkg::Packages) = length(pkg.p)
 Base.isempty(pkg::Packages) = isempty(pkg.p)
-Base.start(pkg::Packages) = start(pkg.p)
-Base.next(pkg::Packages,x) = ((p,s)=next(pkg.p,x); (Package(p),s))
-Base.done(pkg::Packages,x) = done(pkg.p,x)
+function Base.iterate(pkg::Packages)
+    res = iterate(pkg.p)
+    res === nothing && return res
+    p, s = res
+    (Package(p), s)
+end
+function Base.iterate(pkg::Packages, x)
+    res = iterate(pkg.p, x)
+    res === nothing && return res
+    p, s = res
+    (Package(p), s)
+end
 
 function show(io::IO, pkg::Package)
     println(io,"WinRPM Package: ")
@@ -244,7 +254,7 @@ function show(io::IO, pkg::Package)
     println(io,"  Arch: ", LibExpat.string_value(pkg["arch"][1]))
     println(io,"  URL: ", LibExpat.string_value(pkg["url"][1]))
     println(io,"  License: ", LibExpat.string_value(pkg["format/rpm:license"][1]))
-    print(io,"  Description: ", replace(LibExpat.string_value(pkg["description"][1]), r"\r\n|\r|\n", "\n    "))
+    print(io,"  Description: ", replace(LibExpat.string_value(pkg["description"][1]), r"\r\n|\r|\n" => "\n    "))
 end
 
 function show(io::IO, pkgs::Packages)
@@ -270,17 +280,17 @@ function select(pkgs::Packages, pkg::AbstractString)
     elseif length(pkgs) == 1
         pkg = pkgs[1]
     else
-        info("Multiple package candidates found for $pkg, picking newest.")
+        @info("Multiple package candidates found for $pkg, picking newest.")
         epochs = [getepoch(pkg) for pkg in pkgs]
-        pkgs = pkgs[findin(epochs,maximum(epochs))]
+        pkgs = pkgs[findall(in(maximum(epochs)), epochs)]
         if length(pkgs) > 1
             versions = [convert(RPMVersionNumber, pkg[xpath"version/@ver"][1]) for pkg in pkgs]
-            pkgs = pkgs[versions .== maximum(versions)]
+            pkgs = pkgs[versions .== Ref(maximum(versions))]
             if length(pkgs) > 1
-                release = [convert(VersionNumber, pkg[xpath"version/@rel"][1]) for pkg in pkgs]
-                pkgs = pkgs[release .== maximum(release)]
+                release = [VersionNumber(pkg[xpath"version/@rel"][1]) for pkg in pkgs]
+                pkgs = pkgs[release .== Ref(maximum(release))]
                 if length(pkgs) > 1
-                    warn("Multiple package candidates have the same version, picking one at random")
+                    @warn("Multiple package candidates have the same version, picking one at random")
                 end
             end
         end
@@ -306,7 +316,7 @@ function rpm_provides(requires::Union{Vector{T},Set{T}}) where T<:AbstractString
     for x in requires
         pkgs_ = rpm_provides(x)
         if isempty(pkgs_)
-            warn("Package not found that provides $x")
+            @warn("Package not found that provides $x")
         else
             push!(pkgs, select(pkgs_,x).pd)
         end
@@ -347,6 +357,7 @@ Base.:(<=)(a::RPMVersionNumber, b::RPMVersionNumber) = (a == b) || (a < b)
 Base.:(>)(a::RPMVersionNumber, b::RPMVersionNumber) = !(a <= b)
 Base.:(>=)(a::RPMVersionNumber, b::RPMVersionNumber) = !(a < b)
 Base.:(!=)(a::RPMVersionNumber, b::RPMVersionNumber) = !(a == b)
+Base.isless(a::RPMVersionNumber, b::RPMVersionNumber) = (a < b)
 
 function getepoch(pkg::Package)
     epoch = pkg[xpath"version/@epoch"]
@@ -392,16 +403,16 @@ end
 function install(pkg::Union{Package,Packages}; yes=false)
     todo, toup = prepare_install(pkg)
     if isempty(todo) && isempty(toup)
-        info("Nothing to do")
+        @info("Nothing to do")
     else
         if !isempty(toup)
-            info("Packages to update:  ", join(names(toup), ", "))
+            @info("Packages to update:  ", join(names(toup), ", "))
             yesold = yes || prompt_ok("Continue with updates")
         else
             yesold = false
         end
         if !isempty(todo)
-            info("Packages to install: ", join(names(todo), ", "))
+            @info("Packages to install: ", join(names(todo), ", "))
             yesnew = yes || prompt_ok("Continue with install")
         else
             yesnew = false
@@ -412,7 +423,7 @@ function install(pkg::Union{Package,Packages}; yes=false)
         if yesnew
             do_install(todo)
         end
-        info("Complete")
+        @info("Complete")
     end
 end
 
@@ -429,7 +440,7 @@ function prepare_install(pkg::Union{Package,Packages})
         end
         toupdate = ETree[]
         filter!(packages) do p
-            ver = replace(join(rpm_ver(p), ','), r"\s", "")
+            ver = replace(join(rpm_ver(p), ','), r"\s" => "")
             oldver = false
             for entry in p[xpath"format/rpm:provides/rpm:entry[@name]"]
                 provides = entry.attr["name"]
@@ -472,10 +483,10 @@ const exe7z = iswindows() ? joinpath(BINDIR, "7z.exe") : "7z"
 function do_install(package::Package)
     name = names(package)
     source, path = rpm_url(package)
-    info("Downloading: ", name)
+    @info("Downloading: ", name)
     data = download("$source/$path")
     if data[2] != 200
-        info("try running WinRPM.update() and retrying the install")
+        @info("try running WinRPM.update() and retrying the install")
         error("failed to download $name $(data[2]) from $source/$path.")
     end
     cache = getcachedir(source)
@@ -483,13 +494,16 @@ function do_install(package::Package)
     open(path2, "w") do f
         write(f, data[1])
     end
-    info("Extracting: ", name)
-    cpio = splitext(path2)[1]*".cpio"
+    @info("Extracting: ", name)
+
+    cpio = splitext(joinpath(cache, escape(basename(path))))[1] * ".cpio"
+
     local err = nothing
     for cmd = [`$exe7z x -y $path2 -o$cache`, `$exe7z x -y $cpio -o$installdir`]
-        (out, pc) = open(cmd, "r")
+        proc = open(cmd, "r")
+        out, pc = proc.out, proc.exitcode
         stdoutstr = read(out, String)
-        if !success(pc)
+        if !success(proc)
             wait_close(out)
             println(stdoutstr)
             err = pc
@@ -506,7 +520,7 @@ function do_install(package::Package)
         end
     end
     isfile(cpio) && rm(cpio)
-    ver = replace(join(rpm_ver(package), ','), r"\s", "")
+    ver = replace(join(rpm_ver(package), ','), r"\s" => "")
     open(installedlist, isfile(installedlist) ? "r+" : "w+") do installed
         for entry in package[xpath"format/rpm:provides/rpm:entry[@name]"]
             provides = entry.attr["name"]
@@ -521,7 +535,7 @@ function prompt_ok(question)
     while true
         print(question)
         print(" [y/N]? ")
-        ans = strip(readline(STDIN))
+        ans = strip(readline(stdin))
         if isempty(ans) || ans[1] == 'n' || ans[1] == 'N'
             return false
         elseif ans[1] == 'y' || ans[1] == 'Y'
@@ -533,7 +547,7 @@ end
 
 include("winrpm_bindeps.jl")
 
-# deprecations 
+# deprecations
 @deprecate help() "Please see the README.md file at https://github.com/JuliaPackaging/WinRPM.jl"
 
 end
