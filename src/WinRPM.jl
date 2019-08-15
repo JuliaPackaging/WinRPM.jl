@@ -53,19 +53,21 @@ if isunix()
     end
 elseif iswindows()
     function download(source::AbstractString; retry=5)
-        dest = Vector{UInt16}(undef, 261)
         for i in 1:retry
-            res = ccall((:URLDownloadToCacheFileW, :urlmon), stdcall, Cuint,
-              (Ptr{Cvoid}, Ptr{UInt16}, Ptr{UInt16}, Clong, Cint, Ptr{Cvoid}),
-              C_NULL, transcode(UInt16, source), dest, sizeof(dest) >> 1, 0, C_NULL)
-            if res == 0
-                resize!(dest, findfirst(iszero, dest) - 1)
-                filename = transcode(String, dest)
-                if isfile(filename)
+            filename, io = mktemp()
+            try
+                close(io)  # need to close before PowerShell version of Base.download()
+                filename = Base.download(source, filename)
+                if 0 < stat(filename).size
                     return read(filename, String), 200
                 end
-            else
-                @warn("Unknown download failure, error code: $res")
+            catch ex
+                if i == retry
+                    @warn("download from $source failed: $ex")
+                    return "", 0
+                end
+            finally
+                rm(filename, force=true)
             end
             @warn("Retry $i/$retry downloading: $source")
         end
@@ -526,7 +528,7 @@ end
 
 include("winrpm_bindeps.jl")
 
-# deprecations 
+# deprecations
 @deprecate help() "Please see the README.md file at https://github.com/JuliaPackaging/WinRPM.jl"
 
 end
