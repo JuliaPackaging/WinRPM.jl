@@ -457,7 +457,15 @@ function do_install(packages::Packages)
     end
 end
 
-const exe7z = iswindows() ? joinpath(BINDIR, "7z.exe") : "7z"
+const exe7z = if iswindows()
+    if isdefined(Base, :LIBEXECDIR)
+        joinpath(BINDIR, Base.LIBEXECDIR, "7z.exe")
+    else
+        joinpath(BINDIR, "7z.exe")
+    end
+else
+    "7z"
+end
 
 function do_install(package::Package)
     name = names(package)
