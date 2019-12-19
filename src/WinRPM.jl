@@ -46,33 +46,54 @@ function __init__()
     update(false, false)
 end
 
-if isunix()
-    function download(source::AbstractString)
-        x = HTTPC.get(source)
-        unsafe_string(x.body), x.http_code
-    end
-elseif iswindows()
-    function download(source::AbstractString; retry=5)
-        dest = Vector{UInt16}(undef, 261)
-        for i in 1:retry
-            res = ccall((:URLDownloadToCacheFileW, :urlmon), stdcall, Cuint,
-              (Ptr{Cvoid}, Ptr{UInt16}, Ptr{UInt16}, Clong, Cint, Ptr{Cvoid}),
-              C_NULL, transcode(UInt16, source), dest, sizeof(dest) >> 1, 0, C_NULL)
-            if res == 0
-                resize!(dest, findfirst(iszero, dest) - 1)
-                filename = transcode(String, dest)
-                if isfile(filename)
-                    return read(filename, String), 200
+if VERSION < v"0.7.0-DEV"
+    if isunix()
+        function download(source::AbstractString)
+            x = HTTPC.get(source)
+            unsafe_string(x.body), x.http_code
+        end
+    elseif iswindows()
+        function download(source::AbstractString; retry=5)
+            dest = Vector{UInt16}(undef, 261)
+            for i in 1:retry
+                res = ccall((:URLDownloadToCacheFileW, :urlmon), stdcall, Cuint,
+                (Ptr{Cvoid}, Ptr{UInt16}, Ptr{UInt16}, Clong, Cint, Ptr{Cvoid}),
+                C_NULL, transcode(UInt16, source), dest, sizeof(dest) >> 1, 0, C_NULL)
+                if res == 0
+                    resize!(dest, findfirst(iszero, dest) - 1)
+                    filename = transcode(String, dest)
+                    if isfile(filename)
+                        return read(filename, String), 200
+                    end
+                else
+                    warn("Unknown download failure, error code: $res")
                 end
-            else
-                @warn("Unknown download failure, error code: $res")
+                warn("Retry $i/$retry downloading: $source")
+            end
+            return "", 0
+        end
+    else
+        error("Platform not supported: $(Sys.KERNEL)")
+    end
+else
+    function download(source::AbstractString; retry=5)
+        for i in 1:retry
+            try
+                filename = joinpath(tempdir(), split(source, "/")[end])
+                filename = Base.download(source, filename)
+                if isfile(filename)
+                    return readstring(filename), 200
+                end
+            catch ex
+                if i == retry
+                    @warn("download from $source failed: $ex")
+                    return "", 0
+                end
             end
             @warn("Retry $i/$retry downloading: $source")
         end
         return "", 0
     end
-else
-    error("Platform not supported: $(Sys.KERNEL)")
 end
 
 getcachedir(source) = getcachedir(cachedir, source)
@@ -534,7 +555,7 @@ end
 
 include("winrpm_bindeps.jl")
 
-# deprecations 
+# deprecations
 @deprecate help() "Please see the README.md file at https://github.com/JuliaPackaging/WinRPM.jl"
 
 end
