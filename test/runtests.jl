@@ -8,13 +8,16 @@ using Test
         end
     end
 
-    if Sys.iswindows()
+    if Sys.iswindows() && lowercase(get(ENV, "CI", "")) == "true"
         @testset "WinRPM.install" begin
             WinRPM.update()
-            WinRPM.install("bzip2"; yes = true)
+            pkg = "bzip2"
+            @info("Attempting to install $(pkg)")
+            WinRPM.install(pkg; yes = true)
             @test isfile(WinRPM.installedlist)
             installedlist = read(WinRPM.installedlist, String)
-            @test occursin("bzip2", installedlist)
+            @test occursin(pkg, installedlist)
+            @info("Successfully installed $(pkg)")
         end
     end
 end
