@@ -1,20 +1,24 @@
 name = "WinRPM"
 uuid = "c17dfb99-b4f7-5aad-8812-456da1ad7187"
-version = "0.4.3"
+version = "1.0.0"
 
 [deps]
 BinDeps = "9e28174c-4ba2-5203-b857-d8d62c4213ee"
-Compat = "34da2185-b29b-5c13-b0c7-acf172513d20"
-HTTPClient = "0862f596-cf2d-50af-8ef4-f2be67dfa83f"
+HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
 LibExpat = "522f3ed2-3f36-55e3-b6df-e94fee9b0c07"
 Libz = "2ec943e9-cfe8-584d-b93d-64dcb6d567b7"
 URIParser = "30578b45-9adc-5946-b283-645ec420af67"
 
 [compat]
 BinDeps = "1"
-Compat = "2, 3"
-HTTPClient = "0.1, 0.2"
-LibExpat = "0.5, 0.6"
+HTTP = "0.8"
+LibExpat = "0.6.1"
 Libz = "1"
 URIParser = "0.4"
 julia = "1"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
