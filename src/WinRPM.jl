@@ -480,7 +480,7 @@ function do_install(package::Package)
         error("failed to download $name $(data[2]) from $source/$path.")
     end
     cache = getcachedir(source)
-    path2 = joinpath(cache,escape(path))
+    path2 = joinpath(cache, basename(path))
     open(path2, "w") do f
         write(f, data[1])
     end
